@@ -7,19 +7,29 @@
 #define HEIGHT 600
 #define E_WIDTH 30
 #define E_HEIGHT 30
-#define P_WIDTH 50
-#define P_HEIGHT 10
-#define B_WIDTH 4
+#define P_WIDTH 30
+#define P_HEIGHT 7
+#define B_WIDTH 3
 #define B_HEIGHT 15
-#define P_BULLETS 5
-#define E_BULLETS 15
+#define P_BULLETS 1
+#define E_BULLETS 5
+#define BASE 4
+#define BASE_WIDTH 60
+#define BASE_HEIGHT 40
+#define DAMAGE 30
 
+/*TODO 
+* Comment the hell out of this. 
+* Especially the per pixel hit detection for the bases
+* Update the per pixel hit detection enemy bullets
+* Update enemy AI
+*/
 enum colour_t {red, green, purple};
 enum direction_t {left, right};
 
 struct enemy_t {
 
-	SDL_Rect dimentions;
+	SDL_Rect hitbox;
 	enum colour_t colour;
 	int alive;
 };
@@ -31,25 +41,39 @@ struct invaders_t {
 	int speed;
 };
 
+struct damage_t {
+	
+	int x;
+	int y;
+	int set;
+};
+
+struct base_t {
+
+	SDL_Rect hitbox;
+	struct damage_t damage[DAMAGE];
+};
+
 struct player_t {
 
-	SDL_Rect dimentions;
+	SDL_Rect hitbox;
 };
 
 struct bullet_t {
 	
-	SDL_Rect dimentions;
+	SDL_Rect hitbox;
 	int alive;
 };
 
 //global variables, for convenience.
 static SDL_Surface *screen;
 struct invaders_t invaders;
+struct base_t base[BASE];
 struct player_t player;
 struct bullet_t bullets[P_BULLETS];
 struct bullet_t e_bullets[E_BULLETS];
 
-//initilize the enemys starting positions, direction, speed and colour
+//Initialize the enemies starting positions, direction, speed and colour
 void init_invaders() {
 	
 	invaders.direction = left;
@@ -64,10 +88,10 @@ void init_invaders() {
 		for (j = 0; j < 10; j++) {
 		
 			invaders.enemy[i][j].alive = 1;
-			invaders.enemy[i][j].dimentions.x = x;
-			invaders.enemy[i][j].dimentions.y = y;
-			invaders.enemy[i][j].dimentions.w = E_WIDTH;
-			invaders.enemy[i][j].dimentions.h = E_HEIGHT;
+			invaders.enemy[i][j].hitbox.x = x;
+			invaders.enemy[i][j].hitbox.y = y;
+			invaders.enemy[i][j].hitbox.w = E_WIDTH;
+			invaders.enemy[i][j].hitbox.h = E_HEIGHT;
 			
 			x += E_WIDTH + 5; // gap size
 			
@@ -92,10 +116,34 @@ void init_invaders() {
 
 void init_player() {
 
-	player.dimentions.x = (WIDTH / 2) - (P_WIDTH / 2);
-	player.dimentions.y = HEIGHT - (P_HEIGHT + 10);
-	player.dimentions.w = P_WIDTH;
-	player.dimentions.h = P_HEIGHT;
+	player.hitbox.x = (WIDTH / 2) - (P_WIDTH / 2);
+	player.hitbox.y = HEIGHT - (P_HEIGHT + 10);
+	player.hitbox.w = P_WIDTH;
+	player.hitbox.h = P_HEIGHT;
+}
+
+void init_bases() {
+
+	int i,j;
+	int x = 100;
+	int y = 500;
+
+	for (i = 0; i < BASE; i++) {
+		
+		base[i].hitbox.x = x;
+		base[i].hitbox.y = y;
+		base[i].hitbox.w = BASE_WIDTH;
+		base[i].hitbox.h = BASE_HEIGHT;
+		
+		for (j = 0; j < DAMAGE; j++) {
+			
+			base[i].damage[j].x = 0;
+			base[i].damage[j].y = 0;
+			base[i].damage[j].set = 0;
+		}
+
+		x += 180; //distance apart
+	}
 }
 
 void init_bullets(struct bullet_t b[], int max) {
@@ -105,14 +153,26 @@ void init_bullets(struct bullet_t b[], int max) {
 	for (i = 0; i < max; i++) {
 	
 		b[i].alive = 0;
-		b[i].dimentions.x = 0;
-		b[i].dimentions.y = 0;
-		b[i].dimentions.w = B_WIDTH;
-		b[i].dimentions.h = B_HEIGHT;
+		b[i].hitbox.x = 0;
+		b[i].hitbox.y = 0;
+		b[i].hitbox.w = B_WIDTH;
+		b[i].hitbox.h = B_HEIGHT;
 	}
 }
 
-void draw_invaders(int x, int y) {
+void draw_background () {
+
+	SDL_Rect src;
+
+	src.x = 0;
+	src.y = 0;
+	src.w = screen->w;
+	src.h = screen->h;
+	
+	SDL_FillRect(screen,&src,0);
+}
+
+void draw_invaders() {
 
 	SDL_Rect src;
 	int i,j;
@@ -144,8 +204,8 @@ void draw_invaders(int x, int y) {
 
 		for (j = 0; j < 10; j++) {
 			
-			src.x = invaders.enemy[i][j].dimentions.x;
-			src.y = invaders.enemy[i][j].dimentions.y;
+			src.x = invaders.enemy[i][j].hitbox.x;
+			src.y = invaders.enemy[i][j].hitbox.y;
 
 			if (invaders.enemy[i][j].alive == 0) {
 				
@@ -157,15 +217,32 @@ void draw_invaders(int x, int y) {
 	}
 }
 
+void draw_bases() {
+
+	SDL_Rect src;
+	//Uint8 c = SDL_MapRGB(screen->format, 255, 150, 0);
+	int i;
+
+	for(i = 0; i < BASE; i++) {
+	
+		src.x = base[i].hitbox.x;
+		src.y = base[i].hitbox.y;
+		src.w = base[i].hitbox.w;
+		src.h = base[i].hitbox.h;
+		
+		SDL_FillRect(screen, &src, 3);
+	}
+}
+
 void draw_player() {
 
 	SDL_Rect src;
 	Uint8 c = SDL_MapRGB(screen->format, 255, 255, 0);
 
-	src.x = player.dimentions.x;
-	src.y = player.dimentions.y;
-	src.w = player.dimentions.w;
-	src.h = player.dimentions.h;
+	src.x = player.hitbox.x;
+	src.y = player.hitbox.y;
+	src.w = player.hitbox.w;
+	src.h = player.hitbox.h;
 	
 	SDL_FillRect(screen, &src, c);
 }
@@ -173,7 +250,7 @@ void draw_player() {
 void draw_bullets(struct bullet_t b[], int max) {
 
 	SDL_Rect src;
-	Uint8 c = SDL_MapRGB(screen->format, 255, 255, 255);
+	//Uint8 c = SDL_MapRGB(screen->format, 255, 255, 255);
 	int i;
 
 
@@ -181,14 +258,35 @@ void draw_bullets(struct bullet_t b[], int max) {
 	
 		if (b[i].alive == 1) {
 		
-			src.x = b[i].dimentions.x;
-			src.y = b[i].dimentions.y;
-			src.w = b[i].dimentions.w;
-			src.h = b[i].dimentions.h;
-			SDL_FillRect(screen, &src, c);
+			src.x = b[i].hitbox.x;
+			src.y = b[i].hitbox.y;
+			src.w = b[i].hitbox.w;
+			src.h = b[i].hitbox.h;
+			SDL_FillRect(screen, &src, 12);
 		}
 	}
 }
+
+void draw_damage() {
+
+	SDL_Rect src;
+
+	int i,j;
+
+	for (i = 0; i < BASE; i++) {
+	
+		for (j = 0; j < DAMAGE; j++) {
+			
+			src.x = base[i].damage[j].x;
+			src.y = base[i].damage[j].y;
+			src.w = B_WIDTH;
+			src.h = B_HEIGHT;
+			
+			SDL_FillRect(screen, &src, 0);
+		}
+	}
+}
+
 
 int move_bullets(struct bullet_t b[], int max, int speed) {
 	
@@ -198,9 +296,14 @@ int move_bullets(struct bullet_t b[], int max, int speed) {
 	
 		if (b[i].alive == 1) {
 			
-			b[i].dimentions.y += speed;
+			b[i].hitbox.y += speed;
 			
-			if (b[i].dimentions.y <= 0) {
+			if (b[i].hitbox.y <= 0) {
+		
+				b[i].alive = 0;	
+			}
+			
+			if (b[i].hitbox.y + b[i].hitbox.h >= HEIGHT) {
 		
 				b[i].alive = 0;	
 			}
@@ -218,7 +321,7 @@ void move_invaders_down() {
 		
 		for (j = 0; j < 10; j++) {
 		
-			invaders.enemy[i][j].dimentions.y += E_HEIGHT;
+			invaders.enemy[i][j].hitbox.y += E_HEIGHT;
 		}
 	}
 			
@@ -237,14 +340,14 @@ int move_invaders(int speed) {
 			
 				if (invaders.enemy[j][i].alive == 1) {
 	
-					if (invaders.enemy[j][i].dimentions.x <= 0) {
+					if (invaders.enemy[j][i].hitbox.x <= 0) {
 					
 						invaders.direction = right;
 						move_invaders_down();
 						return 0;
 					}
 
-					invaders.enemy[j][i].dimentions.x -= invaders.speed;
+					invaders.enemy[j][i].hitbox.x -= invaders.speed;
 				}
 			}
 		}
@@ -257,14 +360,14 @@ int move_invaders(int speed) {
 			
 				if (invaders.enemy[j][i].alive == 1) {
 				
-					if (invaders.enemy[j][i].dimentions.x + E_WIDTH >= WIDTH) {
+					if (invaders.enemy[j][i].hitbox.x + E_WIDTH >= WIDTH) {
 				
 						invaders.direction = left;
 						move_invaders_down();
 						return 0;
 					}
 	
-					invaders.enemy[j][i].dimentions.x += invaders.speed;
+					invaders.enemy[j][i].hitbox.x += invaders.speed;
 				}
 			}
 		}
@@ -277,16 +380,16 @@ void move_player(int direction) {
 
 	if (direction == 0) {
 			
-		if (player.dimentions.x > 0) {
+		if (player.hitbox.x > 0) {
 			
-			player.dimentions.x -= 10;
+			player.hitbox.x -= 10;
 		}
 
 	} else if (direction == 1) {
 
-		if (player.dimentions.x + player.dimentions.w < WIDTH){
+		if (player.hitbox.x + player.hitbox.w < WIDTH){
 
-			player.dimentions.x += 10;
+			player.hitbox.x += 10;
 		}
 	}
 }
@@ -316,7 +419,58 @@ int collision(SDL_Rect a, SDL_Rect b) {
 	return 1;
 }
 
-void enemy_collision() {
+void base_damage(struct base_t *base, struct bullet_t *bullet) {
+	
+	draw_bases();
+	draw_damage();
+	
+	//SDL_Flip(screen);
+	
+	int i,j;
+	int x,y;
+	SDL_LockSurface(screen);
+	Uint8 *raw_pixels;
+	
+	x = bullet->hitbox.x;
+	y = base->hitbox.y + base->hitbox.h;
+	y--;//pixels are just below the base increase up he screen to get the base pixels
+
+	raw_pixels = (Uint8 *) screen->pixels;
+	
+	int pix_offset;
+	
+	for(i = 0; i < base->hitbox.h; i++) {
+		
+		pix_offset = y * screen->pitch  + x;	
+	
+		//found part part of the base
+		if (raw_pixels[pix_offset] == 3) {
+				
+			bullet->alive = 0;
+		
+			//loop through the damage array
+			for(j = 0; j < DAMAGE; j++) {
+				
+				//found a free damage record
+				if (base->damage[j].set == 0) {
+				
+					base->damage[j].set = 1;
+					base->damage[j].x = x;
+					base->damage[j].y = y - 7;
+					break;
+				}
+			}
+
+			break;
+		}
+		
+		y--;
+	}
+	
+	SDL_UnlockSurface(screen);
+}
+
+void enemy_hit_collision() {
 
 	int i,j,k,c;
 	
@@ -330,20 +484,36 @@ void enemy_collision() {
 			
 					if (bullets[k].alive == 1) {
 						
-						c = collision(bullets[k].dimentions, invaders.enemy[i][j].dimentions);
+						c = collision(bullets[k].hitbox, invaders.enemy[i][j].hitbox);
 				
 						if (c == 1) {
 				
 							invaders.enemy[i][j].alive = 0;
 							bullets[k].alive = 0;
-							bullets[k].dimentions.x = 0;
-							bullets[k].dimentions.y = 0;
+							bullets[k].hitbox.x = 0;
+							bullets[k].hitbox.y = 0;
 						}
 					}
 				}
 			}
 		}
 	}
+}
+
+void player_hit_collision() {
+
+	int i,c;
+
+	for(i = 0; i < E_BULLETS; i++) {
+	
+		c = collision(e_bullets[i].hitbox, player.hitbox);
+
+		if (c == 1) {
+		
+			puts("Player Hit !");
+		}
+	}
+
 }
 
 void enemy_player_collision() {
@@ -356,7 +526,7 @@ void enemy_player_collision() {
 		
 			if (invaders.enemy[i][j].alive == 1) {
 					
-				c = collision(player.dimentions, invaders.enemy[i][j].dimentions);
+				c = collision(player.hitbox, invaders.enemy[i][j].hitbox);
 
 				if (c == 1) {
 				
@@ -367,6 +537,29 @@ void enemy_player_collision() {
 	}
 }
 
+void bullet_base_collision(struct bullet_t b[], int max) {
+
+	int i,j,c;
+
+	for (i = 0; i < max; i++) {
+		
+		for (j = 0; j < BASE; j++) {
+	
+			if (b[i].alive == 1) {
+			
+				c = collision(b[i].hitbox, base[j].hitbox);
+
+				if (c == 1) {
+					
+					puts("bullet hit base !");
+					base_damage(&base[j], &b[i]);
+				}
+			}
+		}
+	}
+}
+
+
 void player_shoot() {
 
 	int i;
@@ -375,8 +568,8 @@ void player_shoot() {
 				
 		if (bullets[i].alive == 0) {
 			
-			bullets[i].dimentions.x = player.dimentions.x + (P_WIDTH / 2);
-			bullets[i].dimentions.y = player.dimentions.y;
+			bullets[i].hitbox.x = player.hitbox.x + (P_WIDTH / 2);
+			bullets[i].hitbox.y = player.hitbox.y - bullets[i].hitbox.h;
 			bullets[i].alive = 1;
 			break;
 		}
@@ -387,19 +580,18 @@ void enemy_ai() {
 
 	int i,j,k;
 
-	//enemy bullet ai
 	for (i = 0; i < 5; i++) {
 		
 		for (j = 0; j < 10; j++) {
 			
-			if (invaders.enemy[i][j].alive == 1 && player.dimentions.x == invaders.enemy[i][j].dimentions.x) {
+		       if (invaders.enemy[i][j].alive == 1 && player.hitbox.x == invaders.enemy[i][j].hitbox.x) {
 				 
 				for (k = 0; k < E_BULLETS; k++) {
 		
 					if (e_bullets[i].alive == 0) {
 			
-						e_bullets[k].dimentions.x = invaders.enemy[i][j].dimentions.x;
-						e_bullets[k].dimentions.y = invaders.enemy[i][j].dimentions.y;
+						e_bullets[k].hitbox.x = invaders.enemy[i][j].hitbox.x;
+						e_bullets[k].hitbox.y = invaders.enemy[i][j].hitbox.y;
 						e_bullets[k].alive = 1;
 						break;
 					}
@@ -411,8 +603,6 @@ void enemy_ai() {
 
 int main() {
 	
-	SDL_Rect src;
-
 	/* Initialize SDL’s video system and check for errors */
 	if (SDL_Init(SDL_INIT_VIDEO) != 0) {
 
@@ -439,6 +629,7 @@ int main() {
 	SDL_Event event;
 
 	init_invaders();
+	init_bases();
 	init_player();
 	init_bullets(bullets, P_BULLETS);
 	init_bullets(e_bullets, E_BULLETS);
@@ -446,9 +637,6 @@ int main() {
 	/* Animate */
 	while (quit == 0) {
 		
-		/* Update SDL's internal input state information. */
-		//SDL_PumpEvents();
-
 		/* Grab a snapshot of the keyboard. */
 		keystate = SDL_GetKeyState(NULL);
 		
@@ -493,24 +681,17 @@ int main() {
 			move_player(1);
 		}
 
-		//draw bg
-		src.x = 0;
-		src.y = 0;
-		src.w = screen->w;
-		src.h = screen->h;
-	
-		int r = SDL_FillRect(screen,&src,0);
-		
-		if (r !=0){
-			
-			printf("fill rectangle faliled");
-		}
-		
-		draw_invaders(10, 10);
+		draw_background();
 		draw_player();
+		draw_bases();
+		draw_damage();
+		draw_invaders();
 		draw_bullets(bullets, P_BULLETS);
 		draw_bullets(e_bullets, E_BULLETS);
-		enemy_collision();
+		enemy_hit_collision();
+		player_hit_collision();
+		bullet_base_collision(e_bullets, E_BULLETS);
+		bullet_base_collision(bullets, P_BULLETS);
 		enemy_player_collision();
 		enemy_ai();
 		move_invaders(invaders.speed);
