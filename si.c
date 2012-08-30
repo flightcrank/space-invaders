@@ -9,21 +9,21 @@
 #define E_HEIGHT 30
 #define P_WIDTH 30
 #define P_HEIGHT 7
-#define B_WIDTH 3
+#define B_WIDTH 5
 #define B_HEIGHT 15
 #define P_BULLETS 1
 #define E_BULLETS 5
 #define BASE 4
 #define BASE_WIDTH 60
 #define BASE_HEIGHT 40
-#define DAMAGE 30
+#define DAMAGE 60
 
 /*TODO 
 * Comment the hell out of this. 
 * Especially the per pixel hit detection for the bases
-* Update the per pixel hit detection enemy bullets
 * Update enemy AI
 */
+
 enum colour_t {red, green, purple};
 enum direction_t {left, right};
 
@@ -262,7 +262,7 @@ void draw_bullets(struct bullet_t b[], int max) {
 			src.y = b[i].hitbox.y;
 			src.w = b[i].hitbox.w;
 			src.h = b[i].hitbox.h;
-			SDL_FillRect(screen, &src, 12);
+			SDL_FillRect(screen, &src, 255);
 		}
 	}
 }
@@ -419,55 +419,113 @@ int collision(SDL_Rect a, SDL_Rect b) {
 	return 1;
 }
 
-void base_damage(struct base_t *base, struct bullet_t *bullet) {
+void base_damage(struct base_t *base, struct bullet_t *bullet, int l) {
 	
 	draw_bases();
 	draw_damage();
-	
-	//SDL_Flip(screen);
 	
 	int i,j;
 	int x,y;
 	SDL_LockSurface(screen);
 	Uint8 *raw_pixels;
-	
-	x = bullet->hitbox.x;
-	y = base->hitbox.y + base->hitbox.h;
-	y--;//pixels are just below the base increase up he screen to get the base pixels
 
 	raw_pixels = (Uint8 *) screen->pixels;
 	
 	int pix_offset;
 	
-	for(i = 0; i < base->hitbox.h; i++) {
+	if (l == 0) {
 		
-		pix_offset = y * screen->pitch  + x;	
-	
-		//found part part of the base
-		if (raw_pixels[pix_offset] == 3) {
-				
-			bullet->alive = 0;
-		
-			//loop through the damage array
-			for(j = 0; j < DAMAGE; j++) {
-				
-				//found a free damage record
-				if (base->damage[j].set == 0) {
-				
-					base->damage[j].set = 1;
-					base->damage[j].x = x;
-					base->damage[j].y = y - 7;
-					break;
-				}
-			}
+		x = bullet->hitbox.x;
+		y = base->hitbox.y + base->hitbox.h;
+		y--;//pixels are just below the bullet increase up the screen to get the base's pixels
 
-			break;
-		}
+		for(i = 0; i < base->hitbox.h; i++) {
+			
+			pix_offset = y * screen->pitch  + x;	
 		
-		y--;
+			//found part part of the base
+			if (raw_pixels[pix_offset] == 3) {
+					
+				bullet->alive = 0;
+			
+				//loop through the damage array
+				for(j = 0; j < DAMAGE; j++) {
+					
+					//found a free damage record
+					if (base->damage[j].set == 0) {
+					
+						base->damage[j].set = 1;
+						base->damage[j].x = x;
+						base->damage[j].y = y - 7;// i forget why this is 7
+						break;
+					}
+				}
+	
+				break;
+			}
+			
+			y--;
+		}
 	}
 	
+	if (l == 1) {
+
+		x = bullet->hitbox.x;
+		y = base->hitbox.y;
+
+		y++;//pixels are just below the bullet increase down the screen to get the base's pixels
+		
+		for(i = 0; i < base->hitbox.h; i++) {
+			
+			pix_offset = y * screen->pitch  + x;	
+		
+			//found part part of the base
+			if (raw_pixels[pix_offset] == 3) {
+					
+				bullet->alive = 0;
+			
+				//loop through the damage array
+				for(j = 0; j < DAMAGE; j++) {
+					
+					//found a free damage record
+					if (base->damage[j].set == 0) {
+					
+						base->damage[j].set = 1;
+						base->damage[j].x = x;
+						base->damage[j].y = y - 7;//i forget why this is 7
+						break;
+					}
+				}
+	
+				break;
+			}
+			
+			y++;
+		}
+	}
+
 	SDL_UnlockSurface(screen);
+}
+
+void enemy_base_collision() {
+
+	int i,j,k,c;
+
+	for (i = 0; i < 5; i++) {
+
+		for (j = 0;  j < 10; j++) {
+		
+			for (k = 0;  k < BASE; k++) {
+				
+				c = collision(invaders.enemy[i][j].hitbox,base[k].hitbox);		
+				
+				if (c == 1) {
+				
+					//puts("enemy hit base !");
+				}
+			}
+		}
+	}
 }
 
 void enemy_hit_collision() {
@@ -510,7 +568,7 @@ void player_hit_collision() {
 
 		if (c == 1) {
 		
-			puts("Player Hit !");
+			//puts("Player Hit !");
 		}
 	}
 
@@ -537,7 +595,7 @@ void enemy_player_collision() {
 	}
 }
 
-void bullet_base_collision(struct bullet_t b[], int max) {
+void bullet_base_collision(struct bullet_t b[], int max, int l) {
 
 	int i,j,c;
 
@@ -551,8 +609,8 @@ void bullet_base_collision(struct bullet_t b[], int max) {
 
 				if (c == 1) {
 					
-					puts("bullet hit base !");
-					base_damage(&base[j], &b[i]);
+					//printf("bullet hit base !, %d\n",l);
+					base_damage(&base[j], &b[i],l);
 				}
 			}
 		}
@@ -690,8 +748,9 @@ int main() {
 		draw_bullets(e_bullets, E_BULLETS);
 		enemy_hit_collision();
 		player_hit_collision();
-		bullet_base_collision(e_bullets, E_BULLETS);
-		bullet_base_collision(bullets, P_BULLETS);
+		enemy_base_collision();
+		bullet_base_collision(e_bullets, E_BULLETS, 1);
+		bullet_base_collision(bullets, P_BULLETS, 0);
 		enemy_player_collision();
 		enemy_ai();
 		move_invaders(invaders.speed);
