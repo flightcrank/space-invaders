@@ -16,11 +16,12 @@
 #define BASE 4
 #define BASE_WIDTH 60
 #define BASE_HEIGHT 40
-#define DAMAGE 60
+#define DAMAGE 100
 
 /*TODO 
-* Comment the hell out of this. 
-* Especially the per pixel hit detection for the bases
+* Comment the hell out of this. Especially the per pixel hit detection for the bases
+* Add in flying saucer
+* Add in scoreing system
 * Update enemy AI
 */
 
@@ -45,6 +46,7 @@ struct damage_t {
 	
 	int x;
 	int y;
+	SDL_Rect area;
 	int set;
 };
 
@@ -81,7 +83,7 @@ void init_invaders() {
 
 	int i,j;
 	int x = 100;
-	int y = 40;
+	int y = 30;
 	
 	for (i = 0; i < 5; i++) {
 	
@@ -109,7 +111,7 @@ void init_invaders() {
 			}
 		}
 		
-		x = 100;
+		x = 100; //reset line
 		y += E_HEIGHT + 5;
 	}
 }
@@ -269,20 +271,16 @@ void draw_bullets(struct bullet_t b[], int max) {
 
 void draw_damage() {
 
-	SDL_Rect src;
-
 	int i,j;
 
 	for (i = 0; i < BASE; i++) {
 	
 		for (j = 0; j < DAMAGE; j++) {
 			
-			src.x = base[i].damage[j].x;
-			src.y = base[i].damage[j].y;
-			src.w = B_WIDTH;
-			src.h = B_HEIGHT;
+			if (base[i].damage[j].set == 1) {
 			
-			SDL_FillRect(screen, &src, 0);
+				SDL_FillRect(screen, &base[i].damage[j].area, 0);
+			}
 		}
 	}
 }
@@ -419,7 +417,7 @@ int collision(SDL_Rect a, SDL_Rect b) {
 	return 1;
 }
 
-void base_damage(struct base_t *base, struct bullet_t *bullet, int l) {
+void bullet_base_damage(struct base_t *base, struct bullet_t *bullet, int l) {
 	
 	draw_bases();
 	draw_damage();
@@ -437,7 +435,6 @@ void base_damage(struct base_t *base, struct bullet_t *bullet, int l) {
 		
 		x = bullet->hitbox.x;
 		y = base->hitbox.y + base->hitbox.h;
-		y--;//pixels are just below the bullet increase up the screen to get the base's pixels
 
 		for(i = 0; i < base->hitbox.h; i++) {
 			
@@ -455,8 +452,10 @@ void base_damage(struct base_t *base, struct bullet_t *bullet, int l) {
 					if (base->damage[j].set == 0) {
 					
 						base->damage[j].set = 1;
-						base->damage[j].x = x;
-						base->damage[j].y = y - 7;// i forget why this is 7
+						base->damage[j].area.x = x;
+						base->damage[j].area.y = y - (B_HEIGHT - 1);
+						base->damage[j].area.w = bullet->hitbox.w;
+						base->damage[j].area.h = bullet->hitbox.h;
 						break;
 					}
 				}
@@ -472,8 +471,7 @@ void base_damage(struct base_t *base, struct bullet_t *bullet, int l) {
 
 		x = bullet->hitbox.x;
 		y = base->hitbox.y;
-
-		y++;//pixels are just below the bullet increase down the screen to get the base's pixels
+	//	y++;//pixels are just below the bullet increase down the screen to get the base's pixels
 		
 		for(i = 0; i < base->hitbox.h; i++) {
 			
@@ -491,8 +489,10 @@ void base_damage(struct base_t *base, struct bullet_t *bullet, int l) {
 					if (base->damage[j].set == 0) {
 					
 						base->damage[j].set = 1;
-						base->damage[j].x = x;
-						base->damage[j].y = y - 7;//i forget why this is 7
+						base->damage[j].area.x = x;
+						base->damage[j].area.y = y - 1;
+						base->damage[j].area.w = bullet->hitbox.w;
+						base->damage[j].area.h = bullet->hitbox.h;
 						break;
 					}
 				}
@@ -507,6 +507,100 @@ void base_damage(struct base_t *base, struct bullet_t *bullet, int l) {
 	SDL_UnlockSurface(screen);
 }
 
+//the base will only get damage by the enemys if the enemy
+//touches the base on its hot spot. the bottom right or left corner.
+//to fix this do a double loop and go upwards from the hotspot
+//if the blue base pixel isnt found. way to lazy to implement and debug
+void enemy_base_damage(struct enemy_t *enemy, struct base_t *base) {
+	
+	draw_bases();
+	draw_damage();
+	
+	SDL_LockSurface(screen);
+	Uint8 *raw_pixels;
+
+	raw_pixels = (Uint8 *) screen->pixels;
+	
+	int pix_offset;
+	int i,j,x,y;
+
+	if (invaders.direction == right) {
+		
+		x = enemy->hitbox.x + enemy->hitbox.w;
+		y = enemy->hitbox.y + enemy->hitbox.h;
+		y--;//1 pix up
+		x--;//1 pix left
+		//in exact corner
+
+		for (i = 0; i < base->hitbox.w; i++) {
+			
+			pix_offset = y * screen->pitch  + x;
+			
+			if (raw_pixels[pix_offset] == 3) {
+			
+				//invaders.speed = 0;
+
+				//loop through the damage array
+				for(j = 0; j < DAMAGE; j++) {
+					
+					//found a free damage record
+					if (base->damage[j].set == 0) {
+					
+						base->damage[j].set = 1;
+						base->damage[j].area.x = x - enemy->hitbox.w + 1;
+						base->damage[j].area.y = y - enemy->hitbox.h + 1;
+						base->damage[j].area.w = enemy->hitbox.w;
+						base->damage[j].area.h = enemy->hitbox.h;
+						break;
+					}
+				}
+
+				break;
+			}
+
+			x--;
+		}
+	}
+
+	if (invaders.direction == left) {
+		
+		x = enemy->hitbox.x;
+		y = enemy->hitbox.y + enemy->hitbox.h;
+		y--; //exact bottom corner of enemy hitbox;
+		x--; //1 pix to the left
+
+		for (i = 0; i < base->hitbox.w; i++) {
+			
+			pix_offset = y * screen->pitch + x;
+			
+			if (raw_pixels[pix_offset] == 3) {
+			
+				//loop through the damage array
+				for(j = 0; j < DAMAGE; j++) {
+					
+					//found a free damage record
+					if (base->damage[j].set == 0) {
+					
+						base->damage[j].set = 1;
+						base->damage[j].area.x = x;
+						base->damage[j].area.y = y - enemy->hitbox.h;
+						base->damage[j].area.w = enemy->hitbox.w;
+						base->damage[j].area.h = enemy->hitbox.h;
+						break;
+					}
+				}
+
+				break;
+			}
+
+			x++;
+		}
+	}
+
+	SDL_UnlockSurface(screen);
+	draw_invaders();
+}
+
 void enemy_base_collision() {
 
 	int i,j,k,c;
@@ -516,12 +610,16 @@ void enemy_base_collision() {
 		for (j = 0;  j < 10; j++) {
 		
 			for (k = 0;  k < BASE; k++) {
+			
+				if (invaders.enemy[i][j].alive == 1) {
 				
-				c = collision(invaders.enemy[i][j].hitbox,base[k].hitbox);		
-				
-				if (c == 1) {
-				
-					//puts("enemy hit base !");
+					c = collision(invaders.enemy[i][j].hitbox,base[k].hitbox);		
+					
+					if (c == 1) {
+						
+						//puts("enemy hit base !");
+						enemy_base_damage(&invaders.enemy[i][j], &base[k]);
+					}
 				}
 			}
 		}
@@ -610,7 +708,7 @@ void bullet_base_collision(struct bullet_t b[], int max, int l) {
 				if (c == 1) {
 					
 					//printf("bullet hit base !, %d\n",l);
-					base_damage(&base[j], &b[i],l);
+					bullet_base_damage(&base[j], &b[i],l);
 				}
 			}
 		}
