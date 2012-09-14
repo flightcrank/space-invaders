@@ -750,7 +750,6 @@ void saucer_hit_collision() {
 				
 				int r = rand() % 3;
 				
-
 				switch (r) {
 			
 					case 0:
@@ -771,6 +770,20 @@ void saucer_hit_collision() {
 					default:
 						puts("Saucer Hit no points");
 						break;
+				}
+				
+				//sucer was hit reset for next time
+				saucer.alive = 0;
+				
+				if (saucer.direction == left) {
+					
+					saucer.hitbox.x = 0; 
+					saucer.direction = right; 
+
+				} else if (saucer.direction == right) {
+				
+					saucer.hitbox.x = WIDTH - saucer.hitbox.w; 
+					saucer.direction = left; 
 				}
 				
 				print_score();
@@ -849,7 +862,7 @@ void player_shoot() {
 void saucer_ai() {
 
 	//every 20 shots
-	if (score.shots != 0 && score.shots % 2 == 0) {
+	if (score.shots != 0 && score.shots % 20 == 0) {
 	
 		saucer.alive = 1;
 	}
