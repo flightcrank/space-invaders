@@ -590,7 +590,7 @@ void bullet_base_damage(struct base_t *base, struct bullet_t *bullet, int l) {
 }
 
 //Populate base's damages array from invader collisions
-void enemy_base_damage(struct enemy_t *enemy, struct baszae_t *base) {
+void enemy_base_damage(struct enemy_t *enemy, struct base_t *base) {
 	
 	draw_bases();
 	draw_damage();
@@ -604,7 +604,7 @@ void enemy_base_damage(struct enemy_t *enemy, struct baszae_t *base) {
 	int i,x,y;
 	int dist;
 
-	if (invaders.direction == right) {za
+	if (invaders.direction == right) {
 		
 		x = enemy->hitbox.x;
 		y = enemy->hitbox.y + enemy->hitbox.h;
