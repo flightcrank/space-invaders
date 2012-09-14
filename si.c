@@ -38,6 +38,7 @@ struct saucer_t {
 	
 	SDL_Rect hitbox;
 	int alive;
+	int points;
 	enum direction_t direction;
 };
 
@@ -92,6 +93,7 @@ struct player_t player;
 struct bullet_t bullets[P_BULLETS];
 struct bullet_t e_bullets[E_BULLETS];
 
+//Initialize the score structure
 void init_score() {
 
 	score.shots = 0;
@@ -118,7 +120,7 @@ void init_invaders() {
 			invaders.enemy[i][j].hitbox.w = E_WIDTH;
 			invaders.enemy[i][j].hitbox.h = E_HEIGHT;
 			
-			x += E_WIDTH + 5; // gap size
+			x += E_WIDTH + 15; // gap size
 			
 			if (i == 0) {
 				
@@ -138,11 +140,12 @@ void init_invaders() {
 		}
 		
 		x = 100; //reset line
-		y += E_HEIGHT + 5;
+		y += E_HEIGHT + 15;
 	}
 
 }
 
+//Initialize the player starting position and dimentions
 void init_player() {
 
 	player.hitbox.x = (WIDTH / 2) - (P_WIDTH / 2);
@@ -152,6 +155,7 @@ void init_player() {
 	player.lives = 3;
 }
 
+//Initialize the bases starting position and dimentions
 void init_bases() {
 
 	int i,j;
@@ -176,6 +180,7 @@ void init_bases() {
 	}
 }
 
+//Initialize the player bullets dimentions
 void init_bullets(struct bullet_t b[], int max) {
 
 	int i;
@@ -190,6 +195,7 @@ void init_bullets(struct bullet_t b[], int max) {
 	}
 }
 
+//Initialize the saucer position and dimentions
 void init_saucer() {
 
 	saucer.hitbox.x = 0;	
@@ -197,8 +203,11 @@ void init_saucer() {
 	saucer.hitbox.w	= 30;
 	saucer.hitbox.h = 20;
 	saucer.alive = 0;
+	saucer.points = 0;
+	saucer.direction = right;
 }
 
+//Draw the background
 void draw_background () {
 
 	SDL_Rect src;
@@ -211,6 +220,17 @@ void draw_background () {
 	SDL_FillRect(screen,&src,0);
 }
 
+//Draw the saucer if its alive
+void draw_saucer() {
+
+	if (saucer.alive == 1) {
+		
+		Uint8 c = SDL_MapRGB(screen->format, 255, 0, 0);
+		SDL_FillRect(screen, &saucer.hitbox, c);
+	}
+}
+
+//Draw the invaders if there alive
 void draw_invaders() {
 
 	SDL_Rect src;
@@ -255,18 +275,19 @@ void draw_invaders() {
 	}
 }
 
+//Draw the bases
 void draw_bases() {
 
 	//Uint8 c = SDL_MapRGB(screen->format, 255, 150, 0);
 	int i;
 
 	for(i = 0; i < BASE; i++) {
-	
 		
 		SDL_FillRect(screen, &base[i].hitbox, 3);
 	}
 }
 
+//Draw the player
 void draw_player() {
 
 	Uint8 c = SDL_MapRGB(screen->format, 255, 255, 0);
@@ -274,6 +295,7 @@ void draw_player() {
 	SDL_FillRect(screen, &player.hitbox, c);
 }
 
+//Draw both the enemy and the players bullets if there alive
 void draw_bullets(struct bullet_t b[], int max) {
 
 	//Uint8 c = SDL_MapRGB(screen->format, 255, 255, 255);
@@ -289,6 +311,7 @@ void draw_bullets(struct bullet_t b[], int max) {
 	}
 }
 
+//Draw the damage on top of the base's
 void draw_damage() {
 
 	int i,j;
@@ -305,6 +328,7 @@ void draw_damage() {
 	}
 }
 
+//Populate the base's dmage array with a rectange pin-pointing where damages is to be used by draw_damage function
 int set_base_damage(struct base_t *base, int x, int y, int w, int h) {
 
 	int i;
@@ -326,11 +350,13 @@ int set_base_damage(struct base_t *base, int x, int y, int w, int h) {
 	return 1;
 }
 
+//Print currnet score to stdout
 void print_score() {
 
 	printf("shot %d. score = %d\n", score.shots, score.points);
 }
 
+//Update positions of both enemy and player bullets on screen
 int move_bullets(struct bullet_t b[], int max, int speed) {
 	
 	int i;
@@ -356,6 +382,7 @@ int move_bullets(struct bullet_t b[], int max, int speed) {
 	return 0;
 }
 
+//Move invaders down one space once the reach the edge
 void move_invaders_down() {
 
 	int i,j;
@@ -371,6 +398,7 @@ void move_invaders_down() {
 	invaders.speed++;
 }
 
+//Move invaders based on there current direction
 int move_invaders(int speed) {
 	
 	int i,j;
@@ -419,6 +447,7 @@ int move_invaders(int speed) {
 	return 0;
 }
 
+//Move player left or right
 void move_player(int direction) {
 
 	if (direction == 0) {
@@ -437,6 +466,38 @@ void move_player(int direction) {
 	}
 }
 
+//Move saucer based on there current direction
+void move_saucer() {
+
+	if (saucer.alive == 1) {
+
+		if (saucer.direction == left) {
+		
+			saucer.hitbox.x -= 5;
+
+			if (saucer.hitbox.x < 0) {
+				
+				saucer.alive = 0;
+				saucer.hitbox.x = 0;
+				saucer.direction = right;
+			}
+		}
+
+		if (saucer.direction == right) {
+		
+			saucer.hitbox.x += 5;
+
+			if (saucer.hitbox.x + saucer.hitbox.w > WIDTH) {
+			
+				saucer.alive = 0;
+				saucer.hitbox.x = WIDTH - saucer.hitbox.w;
+				saucer.direction = left;
+			}
+		}
+	}
+}
+
+//Detect any collision between any two non rotated rectangles
 int collision(SDL_Rect a, SDL_Rect b) {
 
 	if (a.y + a.h < b.y) {
@@ -462,6 +523,7 @@ int collision(SDL_Rect a, SDL_Rect b) {
 	return 1;
 }
 
+//Populate base's damages array from player or enemy bullet collisions
 void bullet_base_damage(struct base_t *base, struct bullet_t *bullet, int l) {
 	
 	draw_bases();
@@ -527,7 +589,8 @@ void bullet_base_damage(struct base_t *base, struct bullet_t *bullet, int l) {
 	SDL_UnlockSurface(screen);
 }
 
-void enemy_base_damage(struct enemy_t *enemy, struct base_t *base) {
+//Populate base's damages array from invader collisions
+void enemy_base_damage(struct enemy_t *enemy, struct baszae_t *base) {
 	
 	draw_bases();
 	draw_damage();
@@ -541,13 +604,12 @@ void enemy_base_damage(struct enemy_t *enemy, struct base_t *base) {
 	int i,x,y;
 	int dist;
 
-	if (invaders.direction == right) {
+	if (invaders.direction == right) {za
 		
 		x = enemy->hitbox.x;
 		y = enemy->hitbox.y + enemy->hitbox.h;
 		y--;//1 pix up
-		//in exact corner
-
+		
 		for (i = 0; i < enemy->hitbox.h; i++) {
 			
 			dist = enemy->hitbox.x - base->hitbox.x;
@@ -595,6 +657,7 @@ void enemy_base_damage(struct enemy_t *enemy, struct base_t *base) {
 	draw_invaders();
 }
 
+//Look for collisions based on enemy and base rectangles
 void enemy_base_collision() {
 
 	int i,j,k,c;
@@ -620,6 +683,7 @@ void enemy_base_collision() {
 	}
 }
 
+//Look for collisions based on player bullet and invader rectangles
 void enemy_hit_collision() {
 
 	int i,j,k,c;
@@ -652,22 +716,70 @@ void enemy_hit_collision() {
 	}
 }
 
+//Look for collisions based on enemy bullet and player rectangles
 void player_hit_collision() {
 
 	int i,c;
 
 	for(i = 0; i < E_BULLETS; i++) {
 	
-		c = collision(e_bullets[i].hitbox, player.hitbox);
+		if (e_bullets[i].alive == 1) {
 
-		if (c == 1) {
+			c = collision(e_bullets[i].hitbox, player.hitbox);
+
+			if (c == 1) {
 		
-			//puts("Player Hit !");
+				//puts("Player Hit !");
+			}
 		}
 	}
-
 }
 
+//Look for collisions based on player bullet and saucer rectangles
+void saucer_hit_collision() {
+
+	int i,c;
+
+	if (saucer.alive == 1) {
+	
+		for(i = 0; i < P_BULLETS; i++) {
+	
+			c = collision(bullets[i].hitbox, saucer.hitbox);
+	
+			if (c == 1) {
+				
+				int r = rand() % 3;
+				
+
+				switch (r) {
+			
+					case 0:
+						score.points += 50;
+						puts("Saucer Hit 50 points");
+						break;
+
+					case 1:
+						score.points += 150;
+						puts("Saucer Hit 150 points");
+						break;
+
+					case 2:
+						score.points += 300;
+						puts("Saucer Hit 300 points");
+						break;
+
+					default:
+						puts("Saucer Hit no points");
+						break;
+				}
+				
+				print_score();
+			}
+		}
+	}
+}
+
+//Look for collisions based on invader and player rectangles
 void enemy_player_collision() {
 
 	int i,j,c;
@@ -689,6 +801,7 @@ void enemy_player_collision() {
 	}
 }
 
+//Look for collisions based on bullet and base rectangles
 void bullet_base_collision(struct bullet_t b[], int max, int l) {
 
 	int i,j,c;
@@ -711,6 +824,7 @@ void bullet_base_collision(struct bullet_t b[], int max, int l) {
 	}
 }
 
+//Shoot bullet/s from player
 void player_shoot() {
 
 	int i;
@@ -723,17 +837,25 @@ void player_shoot() {
 			score.shots++;
 
 			bullets[i].hitbox.x = player.hitbox.x + (P_WIDTH / 2);
-			bullets[i].hitbox.y = player.hitbox.y - bullets[i].hitbox.h;
+			//-5 at the end so the bullets ends closer to the top of the screen due to 30px speed
+			bullets[i].hitbox.y = player.hitbox.y - (bullets[i].hitbox.h - 5);
 			bullets[i].alive = 1;
 			break;
 		}
 	}
 }
 
+//Determin when saucer should apper
 void saucer_ai() {
 
+	//every 20 shots
+	if (score.shots != 0 && score.shots % 2 == 0) {
+	
+		saucer.alive = 1;
+	}
 }
 
+//Determin when invaders should shoot
 void enemy_ai() {
 
 	int i,j,k;
@@ -759,6 +881,7 @@ void enemy_ai() {
 	}
 }
 
+//Main program
 int main() {
 	
 	/* Initialize SDL’s video system and check for errors */
@@ -816,6 +939,7 @@ int main() {
 						case SDLK_SPACE:	
 							
 							player_shoot();
+							saucer_ai();
 						break;
 						
 						default:
@@ -832,7 +956,6 @@ int main() {
 		if (keystate[SDLK_LEFT]) {
 			
 			move_player(0);
-
 		}
 
 		if (keystate[SDLK_RIGHT]) {
@@ -845,16 +968,19 @@ int main() {
 		draw_bases();
 		draw_damage();
 		draw_invaders();
+		draw_saucer();
 		draw_bullets(bullets, P_BULLETS);
 		draw_bullets(e_bullets, E_BULLETS);
 		enemy_hit_collision();
 		player_hit_collision();
 		enemy_base_collision();
+		saucer_hit_collision();
 		bullet_base_collision(e_bullets, E_BULLETS, 1);
 		bullet_base_collision(bullets, P_BULLETS, 0);
 		enemy_player_collision();
 		enemy_ai();
 		move_invaders(invaders.speed);
+		move_saucer();
 		move_bullets(bullets, P_BULLETS, -30);
 		move_bullets(e_bullets, E_BULLETS, 20);
 
