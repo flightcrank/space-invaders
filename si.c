@@ -1,4 +1,6 @@
-
+//known bugs
+//player hitbox will be clipped once some of its pixels lie outside the screen past the edge
+//due to moving 10 pixels at a time. Unknown why it stays that way as the hitbox dimensions remain unchanged
 #include <stdlib.h>
 #include <stdio.h>
 #include "SDL/SDL.h"
@@ -806,6 +808,7 @@ void enemy_player_collision() {
 				if (c == 1) {
 				
 					invaders.speed = 0;
+					player.lives--;
 				}
 			}
 		}
