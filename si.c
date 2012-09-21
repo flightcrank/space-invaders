@@ -12,16 +12,14 @@
 #define B_WIDTH 5
 #define B_HEIGHT 15
 #define P_BULLETS 1
-#define E_BULLETS 5
+#define E_BULLETS 3
 #define BASE 4
 #define BASE_WIDTH 60
 #define BASE_HEIGHT 40
 #define DAMAGE 100
 
 /*TODO 
-* Comment the hell out of this. Especially the per pixel hit detection for the bases
-* Add in flying saucer
-* Add in scoreing system
+* Comment the hell out of this.
 * Update enemy AI
 */
 
@@ -145,7 +143,7 @@ void init_invaders() {
 
 }
 
-//Initialize the player starting position and dimentions
+//Initialize the player starting position and dimensions
 void init_player() {
 
 	player.hitbox.x = (WIDTH / 2) - (P_WIDTH / 2);
@@ -155,7 +153,7 @@ void init_player() {
 	player.lives = 3;
 }
 
-//Initialize the bases starting position and dimentions
+//Initialize the bases starting position and dimensions
 void init_bases() {
 
 	int i,j;
@@ -180,7 +178,7 @@ void init_bases() {
 	}
 }
 
-//Initialize the player bullets dimentions
+//Initialize the player bullets dimensions
 void init_bullets(struct bullet_t b[], int max) {
 
 	int i;
@@ -195,7 +193,7 @@ void init_bullets(struct bullet_t b[], int max) {
 	}
 }
 
-//Initialize the saucer position and dimentions
+//Initialize the saucer position and dimensions
 void init_saucer() {
 
 	saucer.hitbox.x = 0;	
@@ -328,7 +326,7 @@ void draw_damage() {
 	}
 }
 
-//Populate the base's dmage array with a rectange pin-pointing where damages is to be used by draw_damage function
+//Populate the base's damage array with a rectangle pin-pointing where damages is to be used by draw_damage function
 int set_base_damage(struct base_t *base, int x, int y, int w, int h) {
 
 	int i;
@@ -350,7 +348,7 @@ int set_base_damage(struct base_t *base, int x, int y, int w, int h) {
 	return 1;
 }
 
-//Print currnet score to stdout
+//Print current score to stdout
 void print_score() {
 
 	printf("shot %d. score = %d\n", score.shots, score.points);
@@ -858,7 +856,7 @@ void player_shoot() {
 	}
 }
 
-//Determin when saucer should apper
+//Determine when saucer should appear
 void saucer_ai() {
 
 	//every 20 shots
@@ -868,27 +866,46 @@ void saucer_ai() {
 	}
 }
 
-//Determin when invaders should shoot
+//Determine when invaders should shoot
 void enemy_ai() {
 
-	int i,j,k;
+	int i, j, k;
 
-	for (i = 0; i < 5; i++) {
+	for (i = 0; i < 10; i++) {
 		
-		for (j = 0; j < 10; j++) {
+		for (j = 4; j >= 0; j--) {
 			
-		       if (invaders.enemy[i][j].alive == 1 && player.hitbox.x == invaders.enemy[i][j].hitbox.x) {
-				 
-				for (k = 0; k < E_BULLETS; k++) {
-		
-					if (e_bullets[i].alive == 0) {
+			if (invaders.enemy[j][i].alive == 1) {
+				
+				//player
+				int mid_point = player.hitbox.x + (player.hitbox.w / 2);
+				
+				//enemy
+				int start = invaders.enemy[j][i].hitbox.x;
+				int end = invaders.enemy[j][i].hitbox.x + invaders.enemy[j][i].hitbox.w;
+
+				if (mid_point > start && mid_point < end) {
+
+					//fire bullet if available
+					for (k = 0; k < E_BULLETS; k++) {
 			
-						e_bullets[k].hitbox.x = invaders.enemy[i][j].hitbox.x;
-						e_bullets[k].hitbox.y = invaders.enemy[i][j].hitbox.y;
-						e_bullets[k].alive = 1;
-						break;
+						if (e_bullets[k].alive == 0) {
+				
+							int r = rand() % 25;
+
+							if (r == 1) {
+								e_bullets[k].hitbox.x = start + (E_WIDTH / 2) ;
+								e_bullets[k].hitbox.y = invaders.enemy[j][i].hitbox.y;
+								e_bullets[k].alive = 1;
+							}
+
+							break;
+						}
 					}
-				}		
+				}
+				
+				//alive enemy found reversing up the enemy grid dont check the rest of the colum
+				break;
 			}
 		}
 	}
