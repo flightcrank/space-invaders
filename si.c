@@ -10,7 +10,7 @@
 #define E_WIDTH 30
 #define E_HEIGHT 30
 #define P_WIDTH 30
-#define P_HEIGHT 7
+#define P_HEIGHT 10
 #define B_WIDTH 5
 #define B_HEIGHT 15
 #define P_BULLETS 1
@@ -22,11 +22,11 @@
 
 /*TODO 
 * Comment the hell out of this.
-* Update enemy AI
 */
 
 enum colour_t {red, green, purple};
 enum direction_t {left, right};
+enum state_t {menu, options, game};
 
 struct score_t {
 
@@ -55,6 +55,9 @@ struct invaders_t {
 	struct enemy_t enemy[5][10];
 	enum direction_t direction;
 	int speed;
+	int state;
+	int state_speed;
+	Uint32 state_time;
 };
 
 struct damage_t {
@@ -85,6 +88,11 @@ struct bullet_t {
 
 //global variables, for convenience.
 static SDL_Surface *screen;
+static SDL_Surface *title_screen;
+static SDL_Surface *cmap;
+static SDL_Surface *invadersmap;
+static SDL_Surface *player_img;
+static SDL_Surface *saucer_img;
 struct score_t score;
 struct invaders_t invaders;
 struct saucer_t saucer;
@@ -92,12 +100,14 @@ struct base_t base[BASE];
 struct player_t player;
 struct bullet_t bullets[P_BULLETS];
 struct bullet_t e_bullets[E_BULLETS];
+enum state_t state;
 
-//Initialize the score structure
+//Initialize the score structure and game state
 void init_score() {
 
 	score.shots = 0;
 	score.points = 0;
+	state = menu;
 }
 
 //Initialize the enemies starting positions, direction, speed and colour
@@ -105,7 +115,9 @@ void init_invaders() {
 	
 	invaders.direction = right;
 	invaders.speed = 1;
-
+	invaders.state = 0;
+	invaders.state_speed = 1000;
+	invaders.state_time = SDL_GetTicks();
 	int i,j;
 	int x = 100;
 	int y = 30;
@@ -220,57 +232,107 @@ void draw_background () {
 	SDL_FillRect(screen,&src,0);
 }
 
+//Draw the title screen
+void draw_title_screen() {
+	
+	SDL_Rect src;
+	SDL_Rect dest;
+
+	src.x = 0;
+	src.y = 0;
+	src.w = title_screen->w;
+	src.h = title_screen->h;
+
+	dest.x = (WIDTH / 2) - (title_screen->w / 2);
+	dest.y = 0;
+	dest.w = title_screen->w;
+	dest.h = title_screen->h;
+	
+	SDL_BlitSurface(title_screen, &src, screen, &dest);
+}
+
 //Draw the saucer if its alive
 void draw_saucer() {
 
+	SDL_Rect src;
+	
+	src.x = 0;
+	src.y = 0;
+	src.w = 30;
+	src.h = 20;
+	
 	if (saucer.alive == 1) {
 		
-		Uint8 c = SDL_MapRGB(screen->format, 255, 0, 0);
-		SDL_FillRect(screen, &saucer.hitbox, c);
+		SDL_BlitSurface(saucer_img, &src, screen, &saucer.hitbox);
 	}
 }
 
 //Draw the invaders if there alive
 void draw_invaders() {
 
-	SDL_Rect src;
-	Uint8 c;
+	SDL_Rect src, dest;
 	int i,j;
 	
 	src.w = E_WIDTH;
 	src.h = E_HEIGHT;
+	
+	dest.w = E_WIDTH;
+	dest.h = E_HEIGHT;
 
 	for (i = 0; i < 5; i++) {
 		
-		switch (invaders.enemy[i][0].colour) {
-		
-			case green:
-				
-				c = SDL_MapRGB(screen->format, 0, 234, 0);
-				break;
-			
-			case red:
-				
-				c = SDL_MapRGB(screen->format, 234, 0, 0);
-				break;
-			
-			case purple:
-
-				c = SDL_MapRGB(screen->format, 234, 0, 234);
-				break;
-		}
-
 		for (j = 0; j < 10; j++) {
-
-			src.x = invaders.enemy[i][j].hitbox.x;
-			src.y = invaders.enemy[i][j].hitbox.y;
 			
-			if (invaders.enemy[i][j].alive == 0) {
+			if (invaders.enemy[i][j].alive == 1) {
 				
-				continue;
+				//purple
+				if(i == 0) {	
+					
+					if (invaders.state == 0) {
+						
+						src.x = 0;
+						src.y = 0;
+					
+					} else {
+						
+						src.x = 30;
+						src.y = 0;				
+					}
+				
+				//green
+				} else if (i > 0 && i < 3) {
+					
+					if (invaders.state == 0) {
+						
+						src.x = 0;
+						src.y = E_HEIGHT;
+
+					} else {
+						
+						src.x = 30;
+						src.y = E_HEIGHT;
+					}
+
+				//red
+				} else {
+					
+					if (invaders.state == 0) {
+					
+						src.x = 0;
+						src.y = E_HEIGHT * 2;
+					
+					} else {
+					
+						src.x = 30;
+						src.y = E_HEIGHT * 2;	
+					}
+				}
+
+				dest.x = invaders.enemy[i][j].hitbox.x;
+				dest.y = invaders.enemy[i][j].hitbox.y;
+				
+				SDL_BlitSurface(invadersmap, &src, screen, &dest);
 			}
-			
-			SDL_FillRect(screen, &src, c);
 		}
 	}
 }
@@ -290,9 +352,14 @@ void draw_bases() {
 //Draw the player
 void draw_player() {
 
-	Uint8 c = SDL_MapRGB(screen->format, 255, 255, 0);
+	SDL_Rect src;
 
-	SDL_FillRect(screen, &player.hitbox, c);
+	src.x = 0;
+	src.y = 0;
+	src.w = P_WIDTH;
+	src.h = P_HEIGHT;
+
+	SDL_BlitSurface(player_img, &src, screen, &player.hitbox);
 }
 
 //Draw both the enemy and the players bullets if there alive
@@ -328,6 +395,59 @@ void draw_damage() {
 	}
 }
 
+//Draw a char
+int draw_char(char c, int x, int y) {
+
+	SDL_Rect src;
+	SDL_Rect dest;
+	int i,j;
+	char *map[] = {"ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+			"abcdefghijklmnopqrstuvwxyz",
+			"!@#$%^&*()_+{}|:\"<>?,.;'-=",
+			"0123456789"};
+
+	src.x = 0;
+	src.y = 0;
+	src.w = 20;
+	src.h = 20;
+	
+	dest.x = x;
+	dest.y = y;
+	dest.w = 20;
+	dest.h = 20;
+
+	for (i = 0; i < 4; i++) {
+	
+		for(j = 0; j < strlen(map[i]); j++) {
+			
+			if (c == map[i][j]) {
+			
+				SDL_BlitSurface(cmap, &src, screen, &dest);
+				return 0;
+			}
+
+			src.x += 20;
+		}
+	
+		src.y += 20;//move down one line on the image file
+		src.x = 0; //reset to start of line
+	}
+
+	return 0;
+}
+
+//Draw a string of chars
+void draw_string(char s[], int x, int y) {
+
+	int i;
+
+	for (i = 0; i < strlen(s); i++) {
+	
+		draw_char(s[i],x,y);
+		x += 20;
+	}
+}
+
 //Populate the base's damage array with a rectangle pin-pointing where damages is to be used by draw_damage function
 int set_base_damage(struct base_t *base, int x, int y, int w, int h) {
 
@@ -356,7 +476,7 @@ void print_score() {
 	printf("shot %d. score = %d\n", score.shots, score.points);
 }
 
-//Update positions of both enemy and player bullets on screen
+//Move positions of both enemy and player bullets on screen
 int move_bullets(struct bullet_t b[], int max, int speed) {
 	
 	int i;
@@ -396,13 +516,22 @@ void move_invaders_down() {
 	}
 			
 	invaders.speed++;
+
+	if (invaders.state_speed <= 0) {
+		
+		invaders.state_speed = 0;
+	
+	} else {
+
+		invaders.state_speed -= 100;
+	}
 }
 
 //Move invaders based on there current direction
 int move_invaders(int speed) {
 	
 	int i,j;
-
+	
 	if (invaders.direction == left) {
 	
 		for (i = 0; i < 10; i++) {
@@ -417,7 +546,22 @@ int move_invaders(int speed) {
 						move_invaders_down();
 						return 0;
 					}
+					
+					if (invaders.state_time + invaders.state_speed < SDL_GetTicks()) {
+					
+						invaders.state_time = SDL_GetTicks();
+						
+						if (invaders.state == 1) {
+							
+							invaders.state = 0;
 
+						} else {
+							
+							invaders.state = 1;
+						}
+					}
+					
+					//move invader speed number of pixels
 					invaders.enemy[j][i].hitbox.x -= invaders.speed;
 				}
 			}
@@ -438,6 +582,20 @@ int move_invaders(int speed) {
 						return 0;
 					}
 	
+					if (invaders.state_time + invaders.state_speed < SDL_GetTicks()) {
+					
+						invaders.state_time = SDL_GetTicks();
+
+						if (invaders.state == 1) {
+							
+							invaders.state = 0;
+
+						} else {
+							
+							invaders.state = 1;
+						}
+					}
+					
 					invaders.enemy[j][i].hitbox.x += invaders.speed;
 				}
 			}
@@ -501,7 +659,7 @@ void move_saucer() {
 int collision(SDL_Rect a, SDL_Rect b) {
 
 	if (a.y + a.h < b.y) {
-					
+	
 		return 0;
 	}
 				
@@ -852,7 +1010,7 @@ void player_shoot() {
 
 			bullets[i].hitbox.x = player.hitbox.x + (P_WIDTH / 2);
 			//-5 at the end so the bullets ends closer to the top of the screen due to 30px speed
-			bullets[i].hitbox.y = player.hitbox.y - (bullets[i].hitbox.h - 5);
+			bullets[i].hitbox.y = player.hitbox.y - (bullets[i].hitbox.h + 10);
 			bullets[i].alive = 1;
 			break;
 		}
@@ -894,7 +1052,7 @@ void enemy_ai() {
 			
 						if (e_bullets[k].alive == 0) {
 				
-							int r = rand() % 25;
+							int r = rand() % 30;
 
 							if (r == 1) {
 								e_bullets[k].hitbox.x = start + (E_WIDTH / 2) ;
@@ -914,6 +1072,37 @@ void enemy_ai() {
 	}
 }
 
+int load_image(char filename[], SDL_Surface **surface) {
+	
+	SDL_Surface *temp;
+	
+	//load title screen image 
+	temp = SDL_LoadBMP(filename);
+	
+	if (temp == NULL) {
+	
+		printf("Unable to load %s.\n", filename);
+		return 1;
+	}
+	
+	/* Set the titlescreen image colorkey. */
+	Uint32 colorkey = SDL_MapRGB(temp->format, 255, 0, 255);
+	SDL_SetColorKey(temp, SDL_SRCCOLORKEY, colorkey);
+
+	//convert the titlescreen surface to the same type as the screen
+	(*surface) = SDL_DisplayFormat(temp);
+	
+	if ((*surface) == NULL) {
+	
+		printf("Unable to convert bitmap.\n");
+		return 1;
+	}
+	
+	SDL_FreeSurface(temp);
+
+	return 0;
+}
+
 //Main program
 int main() {
 	
@@ -927,7 +1116,10 @@ int main() {
 	/* Make sure SDL_Quit gets called when the program exits! */
 	atexit(SDL_Quit);
 	
-	/* Attempt to set a 640x480 8 bit color video mode */
+	/*set window title*/
+	SDL_WM_SetCaption("Space Invaders", "P");
+	
+	/* Attempt to set a 800x600 8 bit color video mode */
 	screen = SDL_SetVideoMode(WIDTH, HEIGHT, 8, SDL_DOUBLEBUF );
 	
 	if (screen == NULL) {
@@ -935,6 +1127,13 @@ int main() {
 		printf("Unable to set video mode: %s\n", SDL_GetError());
 		return 1;
 	}
+
+	//load title screen image 
+	load_image("titlescreen.bmp", &title_screen);
+	load_image("cmap.bmp", &cmap);
+	load_image("invaders.bmp", &invadersmap);
+	load_image("player.bmp", &player_img);
+	load_image("saucer.bmp", &saucer_img);
 
 	Uint32 next_game_tick = SDL_GetTicks();
 	int sleep = 0;
@@ -970,9 +1169,15 @@ int main() {
 						break;
 						
 						case SDLK_SPACE:	
-							
-							player_shoot();
-							saucer_ai();
+						
+							if (state == menu) {
+
+								state = game;
+
+							} else {
+								player_shoot();
+								saucer_ai();
+							}
 						break;
 						
 						default:
@@ -997,25 +1202,35 @@ int main() {
 		}
 
 		draw_background();
-		draw_player();
-		draw_bases();
-		draw_damage();
-		draw_invaders();
-		draw_saucer();
-		draw_bullets(bullets, P_BULLETS);
-		draw_bullets(e_bullets, E_BULLETS);
-		enemy_hit_collision();
-		player_hit_collision();
-		enemy_base_collision();
-		saucer_hit_collision();
-		bullet_base_collision(e_bullets, E_BULLETS, 1);
-		bullet_base_collision(bullets, P_BULLETS, 0);
-		enemy_player_collision();
-		enemy_ai();
-		move_invaders(invaders.speed);
-		move_saucer();
-		move_bullets(bullets, P_BULLETS, -30);
-		move_bullets(e_bullets, E_BULLETS, 20);
+
+		if (state == menu) {
+			
+			char s[] = "Press SPACEBAR to start";
+			draw_title_screen();
+			draw_string(s, (WIDTH / 2) - (strlen(s) * 10), 500);
+
+		} else if (state == game) {
+
+			draw_player();
+			draw_bases();
+			draw_damage();
+			draw_invaders();
+			draw_saucer();
+			draw_bullets(bullets, P_BULLETS);
+			draw_bullets(e_bullets, E_BULLETS);
+			enemy_hit_collision();
+			player_hit_collision();
+			enemy_base_collision();
+			saucer_hit_collision();
+			bullet_base_collision(e_bullets, E_BULLETS, 1);
+			bullet_base_collision(bullets, P_BULLETS, 0);
+			enemy_player_collision();
+			enemy_ai();
+			move_invaders(invaders.speed);
+			move_saucer();
+			move_bullets(bullets, P_BULLETS, -30);
+			move_bullets(e_bullets, E_BULLETS, 20);
+		}
 
 		/* Ask SDL to update the entire screen. */
 		SDL_Flip(screen);
