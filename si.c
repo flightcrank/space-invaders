@@ -13,20 +13,20 @@
 #define P_HEIGHT 10
 #define B_WIDTH 5
 #define B_HEIGHT 15
-#define P_BULLETS 1
-#define E_BULLETS 3
+#define P_BULLETS 3
+#define E_BULLETS 1
 #define BASE 4
 #define BASE_WIDTH 60
 #define BASE_HEIGHT 40
-#define DAMAGE 100
 
 /*TODO 
 * Comment the hell out of this.
 */
 
 enum colour_t {red, green, purple};
-enum direction_t {left, right};
+enum direction_t {left, right, stationary};
 enum state_t {menu, options, game};
+enum ck_t {magenta, lime};
 
 struct score_t {
 
@@ -60,18 +60,9 @@ struct invaders_t {
 	Uint32 state_time;
 };
 
-struct damage_t {
-	
-	SDL_Rect area;
-	int x;
-	int y;
-	int set;
-};
-
 struct base_t {
 
 	SDL_Rect hitbox;
-	struct damage_t damage[DAMAGE];
 };
 
 struct player_t {
@@ -93,6 +84,8 @@ static SDL_Surface *cmap;
 static SDL_Surface *invadersmap;
 static SDL_Surface *player_img;
 static SDL_Surface *saucer_img;
+static SDL_Surface *base_img[4];
+static SDL_Surface *damage_img;
 struct score_t score;
 struct invaders_t invaders;
 struct saucer_t saucer;
@@ -170,7 +163,7 @@ void init_player() {
 //Initialize the bases starting position and dimensions
 void init_bases() {
 
-	int i,j;
+	int i;
 	int x = 100;
 	int y = 500;
 
@@ -181,13 +174,6 @@ void init_bases() {
 		base[i].hitbox.w = BASE_WIDTH;
 		base[i].hitbox.h = BASE_HEIGHT;
 		
-		for (j = 0; j < DAMAGE; j++) {
-			
-			base[i].damage[j].x = 0;
-			base[i].damage[j].y = 0;
-			base[i].damage[j].set = 0;
-		}
-
 		x += 180; //distance apart
 	}
 }
@@ -340,12 +326,18 @@ void draw_invaders() {
 //Draw the bases
 void draw_bases() {
 
-	//Uint8 c = SDL_MapRGB(screen->format, 255, 150, 0);
+	SDL_Rect src;
+
+	src.x = 0;
+	src.y = 0;
+	src.w = BASE_WIDTH;
+	src.h = BASE_HEIGHT;
+
 	int i;
 
 	for(i = 0; i < BASE; i++) {
 		
-		SDL_FillRect(screen, &base[i].hitbox, 3);
+		SDL_BlitSurface(base_img[i], &src, screen, &base[i].hitbox);
 	}
 }
 
@@ -374,23 +366,6 @@ void draw_bullets(struct bullet_t b[], int max) {
 		if (b[i].alive == 1) {
 		
 			SDL_FillRect(screen, &b[i].hitbox, 255);
-		}
-	}
-}
-
-//Draw the damage on top of the base's
-void draw_damage() {
-
-	int i,j;
-
-	for (i = 0; i < BASE; i++) {
-	
-		for (j = 0; j < DAMAGE; j++) {
-			
-			if (base[i].damage[j].set == 1) {
-			
-				SDL_FillRect(screen, &base[i].damage[j].area, 0);
-			}
 		}
 	}
 }
@@ -446,28 +421,6 @@ void draw_string(char s[], int x, int y) {
 		draw_char(s[i],x,y);
 		x += 20;
 	}
-}
-
-//Populate the base's damage array with a rectangle pin-pointing where damages is to be used by draw_damage function
-int set_base_damage(struct base_t *base, int x, int y, int w, int h) {
-
-	int i;
-
-	for ( i = 0; i < DAMAGE; i++) {
-	
-		//found a free damage record
-		if (base->damage[i].set == 0) {
-			
-			base->damage[i].set = 1;
-			base->damage[i].area.x = x;
-			base->damage[i].area.y = y;
-			base->damage[i].area.w = w;
-			base->damage[i].area.h = h;
-			return 0;
-		}
-	}
-	
-	return 1;
 }
 
 //Print current score to stdout
@@ -531,75 +484,85 @@ void move_invaders_down() {
 int move_invaders(int speed) {
 	
 	int i,j;
-	
-	if (invaders.direction == left) {
-	
-		for (i = 0; i < 10; i++) {
+
+	switch (invaders.direction) {
 		
-			for (j = 0; j < 5; j++) {
+		case left:
+		
+			for (i = 0; i < 10; i++) {
 			
-				if (invaders.enemy[j][i].alive == 1) {
-	
-					if (invaders.enemy[j][i].hitbox.x <= 0) {
-					
-						invaders.direction = right;
-						move_invaders_down();
-						return 0;
-					}
-					
-					if (invaders.state_time + invaders.state_speed < SDL_GetTicks()) {
-					
-						invaders.state_time = SDL_GetTicks();
+				for (j = 0; j < 5; j++) {
+				
+					if (invaders.enemy[j][i].alive == 1) {
+		
+						if (invaders.enemy[j][i].hitbox.x <= 0) {
 						
-						if (invaders.state == 1) {
-							
-							invaders.state = 0;
-
-						} else {
-							
-							invaders.state = 1;
+							invaders.direction = right;
+							move_invaders_down();
+							return 0;
 						}
+						
+						if (invaders.state_time + invaders.state_speed < SDL_GetTicks()) {
+						
+							invaders.state_time = SDL_GetTicks();
+							
+							if (invaders.state == 1) {
+								
+								invaders.state = 0;
+
+							} else {
+								
+								invaders.state = 1;
+							}
+						}
+						
+						//move invader speed number of pixels
+						invaders.enemy[j][i].hitbox.x -= invaders.speed;
 					}
-					
-					//move invader speed number of pixels
-					invaders.enemy[j][i].hitbox.x -= invaders.speed;
 				}
 			}
-		}
 
-	} else if (invaders.direction == right) {
-	
-		for (i = 9; i >= 0; i--) {
-		
-			for (j = 0; j < 5; j++) {
+			break;
+
+		case right:
 			
-				if (invaders.enemy[j][i].alive == 1) {
+			for (i = 9; i >= 0; i--) {
+			
+				for (j = 0; j < 5; j++) {
 				
-					if (invaders.enemy[j][i].hitbox.x + E_WIDTH >= WIDTH) {
-				
-						invaders.direction = left;
-						move_invaders_down();
-						return 0;
-					}
-	
-					if (invaders.state_time + invaders.state_speed < SDL_GetTicks()) {
+					if (invaders.enemy[j][i].alive == 1) {
 					
-						invaders.state_time = SDL_GetTicks();
-
-						if (invaders.state == 1) {
-							
-							invaders.state = 0;
-
-						} else {
-							
-							invaders.state = 1;
+						if (invaders.enemy[j][i].hitbox.x + E_WIDTH >= WIDTH) {
+					
+							invaders.direction = left;
+							move_invaders_down();
+							return 0;
 						}
+		
+						if (invaders.state_time + invaders.state_speed < SDL_GetTicks()) {
+						
+							invaders.state_time = SDL_GetTicks();
+
+							if (invaders.state == 1) {
+								
+								invaders.state = 0;
+
+							} else {
+								
+								invaders.state = 1;
+							}
+						}
+						
+						invaders.enemy[j][i].hitbox.x += invaders.speed;
 					}
-					
-					invaders.enemy[j][i].hitbox.x += invaders.speed;
 				}
 			}
-		}
+
+			break;
+
+		default:
+			break;
+
 	}
 
 	return 0;
@@ -682,37 +645,57 @@ int collision(SDL_Rect a, SDL_Rect b) {
 }
 
 //Populate base's damages array from player or enemy bullet collisions
-void bullet_base_damage(struct base_t *base, struct bullet_t *bullet, int l) {
-	
-	draw_bases();
-	draw_damage();
-	
+void bullet_base_damage(struct base_t *base, int b_num, struct bullet_t *bullet, int l) {
+
 	int i;
 	int x,y;
-	SDL_LockSurface(screen);
+	SDL_LockSurface(base_img[b_num]);
 	Uint8 *raw_pixels;
 
-	raw_pixels = (Uint8 *) screen->pixels;
+	raw_pixels = (Uint8 *) base_img[b_num]->pixels;
 	
 	int pix_offset;
 
 	//bottom
 	if (l == 0) {
-		
-		x = bullet->hitbox.x;
-		y = base->hitbox.y + base->hitbox.h;
+	
+		//how far from the left did the bullet hit the base sprite
+		x = (bullet->hitbox.x + 3) - base->hitbox.x;
+
+		//start from bottom of the base sprite
+		y = base->hitbox.h - 1;
 
 		for(i = 0; i < base->hitbox.h; i++) {
-			
-			pix_offset = y * screen->pitch  + x;	
 		
-			//found part part of the base
-			if (raw_pixels[pix_offset] == 3) {
+			//the x calculation can get us to pixel colum 60 when 59 is the maximum (0 - 59 is 60 pixels)
+			if (x >= BASE_WIDTH) {
+				x = BASE_WIDTH - 1;
+			}
+
+			pix_offset = y * base_img[b_num]->pitch  + x;	
+			//printf ("%d. x = %d y = %d pix = %d\n", i, x, y ,raw_pixels[pix_offset]);
+
+			//found part part of the base sprite that is NOT magenta(index)
+			//searching from the bottom up
+			if (raw_pixels[pix_offset] != 227) {
 					
 				bullet->alive = 0;
-			
-				set_base_damage(base, x, y - (B_HEIGHT -1), bullet->hitbox.w, bullet->hitbox.h);
+				SDL_Rect src;
+				SDL_Rect dest;
+				
+				src.x = 0;
+				src.y = 0;
+				src.w = 11;
+				src.h = 15;
 
+				dest.x = x - 3;
+				dest.y = y - 14;
+				dest.w = 11;
+				dest.h = 15;
+				
+				SDL_UnlockSurface(base_img[b_num]);
+				SDL_BlitSurface(damage_img, &src, base_img[b_num], &dest);
+				
 				break;
 			}
 			
@@ -723,19 +706,43 @@ void bullet_base_damage(struct base_t *base, struct bullet_t *bullet, int l) {
 	//top
 	if (l == 1) {
 
-		x = bullet->hitbox.x;
-		y = base->hitbox.y;
+		//how far from the left did the bullet hit the base sprite
+		x = (bullet->hitbox.x + 3) - base->hitbox.x;
+
+		//start from top of the base sprite
+		y = 0;
 		
 		for(i = 0; i < base->hitbox.h; i++) {
 			
-			pix_offset = y * screen->pitch  + x;	
+			//the x calculation can get us to pixel colum 60 when 59 is the maximum (0 - 59 is 60 pixels)
+			if (x >= BASE_WIDTH) {
+				x = BASE_WIDTH - 1;
+			}
+
+			pix_offset = y * base_img[b_num]->pitch  + x;	
+			printf ("%d. x = %d y = %d pix = %d\n", i, x, y ,raw_pixels[pix_offset]);
 		
-			//found part part of the base
-			if (raw_pixels[pix_offset] == 3) {
+			//found part part of the base sprite that is NOT magenta(index)
+			//searching from the top down
+			if (raw_pixels[pix_offset] != 227) {
 					
 				bullet->alive = 0;
 			
-				set_base_damage(base, x, y -1, bullet->hitbox.w, bullet->hitbox.h);
+				SDL_Rect src;
+				SDL_Rect dest;
+				
+				src.x = 0;
+				src.y = 0;
+				src.w = 11;
+				src.h = 15;
+
+				dest.x = x - 3;
+				dest.y = y;
+				dest.w = 11;
+				dest.h = 15;
+				
+				SDL_UnlockSurface(base_img[b_num]);
+				SDL_BlitSurface(damage_img, &src, base_img[b_num], &dest);
 				
 				break;
 			}
@@ -744,14 +751,13 @@ void bullet_base_damage(struct base_t *base, struct bullet_t *bullet, int l) {
 		}
 	}
 
-	SDL_UnlockSurface(screen);
+	SDL_UnlockSurface(base_img[b_num]);
 }
 
 //Populate base's damages array from invader collisions
 void enemy_base_damage(struct enemy_t *enemy, struct base_t *base) {
 	
 	draw_bases();
-	draw_damage();
 	
 	SDL_LockSurface(screen);
 	Uint8 *raw_pixels;
@@ -778,7 +784,7 @@ void enemy_base_damage(struct enemy_t *enemy, struct base_t *base) {
 			
 				if (raw_pixels[pix_offset] == 3) {
 				
-					set_base_damage(base, x - dist, enemy->hitbox.y, enemy->hitbox.w + dist, enemy->hitbox.h);			
+					//set_base_damage(base, x - dist, enemy->hitbox.y, enemy->hitbox.w + dist, enemy->hitbox.h);			
 				}
 
 				y--;
@@ -803,7 +809,7 @@ void enemy_base_damage(struct enemy_t *enemy, struct base_t *base) {
 			
 				if (raw_pixels[pix_offset] == 3) {
 				
-					set_base_damage(base, enemy->hitbox.x, enemy->hitbox.y, enemy->hitbox.w + dist, enemy->hitbox.h);			
+					//set_base_damage(base, enemy->hitbox.x, enemy->hitbox.y, enemy->hitbox.w + dist, enemy->hitbox.h);			
 				}
 
 				y--;
@@ -902,49 +908,52 @@ void saucer_hit_collision() {
 	
 		for(i = 0; i < P_BULLETS; i++) {
 	
-			c = collision(bullets[i].hitbox, saucer.hitbox);
-	
-			if (c == 1) {
-				
-				int r = rand() % 3;
-				
-				switch (r) {
+			if (bullets[i].alive == 1) {
 			
-					case 0:
-						score.points += 50;
-						puts("Saucer Hit 50 points");
-						break;
-
-					case 1:
-						score.points += 150;
-						puts("Saucer Hit 150 points");
-						break;
-
-					case 2:
-						score.points += 300;
-						puts("Saucer Hit 300 points");
-						break;
-
-					default:
-						puts("Saucer Hit no points");
-						break;
-				}
+				c = collision(bullets[i].hitbox, saucer.hitbox);
+	
+				if (c == 1) {
 				
-				//sucer was hit reset for next time
-				saucer.alive = 0;
-				
-				if (saucer.direction == left) {
+					int r = rand() % 3;
 					
-					saucer.hitbox.x = 0; 
-					saucer.direction = right; 
-
-				} else if (saucer.direction == right) {
-				
-					saucer.hitbox.x = WIDTH - saucer.hitbox.w; 
-					saucer.direction = left; 
+					switch (r) {
+			
+						case 0:
+							score.points += 50;
+							puts("Saucer Hit 50 points");
+							break;
+	
+						case 1:
+							score.points += 150;
+							puts("Saucer Hit 150 points");
+							break;
+	
+						case 2:
+							score.points += 300;
+							puts("Saucer Hit 300 points");
+							break;
+	
+						default:
+							puts("Saucer Hit no points");
+							break;
+					}
+					
+					//sucer was hit reset for next time
+					saucer.alive = 0;
+					
+					if (saucer.direction == left) {
+						
+						saucer.hitbox.x = 0; 
+						saucer.direction = right; 
+	
+					} else if (saucer.direction == right) {
+					
+						saucer.hitbox.x = WIDTH - saucer.hitbox.w; 
+						saucer.direction = left; 
+					}
+					
+					print_score();
 				}
-				
-				print_score();
 			}
 		}
 	}
@@ -966,6 +975,7 @@ void enemy_player_collision() {
 				if (c == 1) {
 				
 					invaders.speed = 0;
+					invaders.direction = stationary;
 					player.lives--;
 				}
 			}
@@ -989,7 +999,7 @@ void bullet_base_collision(struct bullet_t b[], int max, int l) {
 				if (c == 1) {
 					
 					//printf("bullet hit base !, %d\n",l);
-					bullet_base_damage(&base[j], &b[i],l);
+					bullet_base_damage(&base[j], j, &b[i],l);
 				}
 			}
 		}
@@ -1072,11 +1082,12 @@ void enemy_ai() {
 	}
 }
 
-int load_image(char filename[], SDL_Surface **surface) {
+//Load image files
+int load_image(char filename[], SDL_Surface **surface, enum ck_t colour_key) {
 	
 	SDL_Surface *temp;
 	
-	//load title screen image 
+	//load image 
 	temp = SDL_LoadBMP(filename);
 	
 	if (temp == NULL) {
@@ -1084,12 +1095,22 @@ int load_image(char filename[], SDL_Surface **surface) {
 		printf("Unable to load %s.\n", filename);
 		return 1;
 	}
-	
-	/* Set the titlescreen image colorkey. */
-	Uint32 colorkey = SDL_MapRGB(temp->format, 255, 0, 255);
-	SDL_SetColorKey(temp, SDL_SRCCOLORKEY, colorkey);
 
-	//convert the titlescreen surface to the same type as the screen
+	Uint32 colourkey;
+
+	/* Set the image colorkey. */
+	if (colour_key == magenta) {
+		
+		colourkey = SDL_MapRGB(temp->format, 255, 0, 255);
+	
+	} else if (colour_key == lime) {
+	
+		colourkey = SDL_MapRGB(temp->format, 0, 255, 0);
+	}
+
+	SDL_SetColorKey(temp, SDL_SRCCOLORKEY, colourkey);
+
+	//convert the image surface to the same type as the screen
 	(*surface) = SDL_DisplayFormat(temp);
 	
 	if ((*surface) == NULL) {
@@ -1128,12 +1149,19 @@ int main() {
 		return 1;
 	}
 
-	//load title screen image 
-	load_image("titlescreen.bmp", &title_screen);
-	load_image("cmap.bmp", &cmap);
-	load_image("invaders.bmp", &invadersmap);
-	load_image("player.bmp", &player_img);
-	load_image("saucer.bmp", &saucer_img);
+	//load images
+	enum ck_t colour_key = magenta;
+	load_image("titlescreen.bmp", &title_screen, colour_key);
+	load_image("cmap.bmp", &cmap, colour_key);
+	load_image("invaders.bmp", &invadersmap, colour_key);
+	load_image("player.bmp", &player_img, colour_key);
+	load_image("saucer.bmp", &saucer_img, colour_key);
+	load_image("base.bmp", &base_img[0], colour_key);
+	load_image("base.bmp", &base_img[1], colour_key);
+	load_image("base.bmp", &base_img[2], colour_key);
+	load_image("base.bmp", &base_img[3], colour_key);
+	colour_key = lime;
+	load_image("damage.bmp", &damage_img, colour_key);
 
 	Uint32 next_game_tick = SDL_GetTicks();
 	int sleep = 0;
@@ -1213,7 +1241,6 @@ int main() {
 
 			draw_player();
 			draw_bases();
-			draw_damage();
 			draw_invaders();
 			draw_saucer();
 			draw_bullets(bullets, P_BULLETS);
