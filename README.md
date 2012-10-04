@@ -8,10 +8,10 @@ Title screen
 ![alpha build 1](http://i.imgur.com/zpBdE.png)
 
 Gameplay with animated enemy sprites
-![alpha build 2](http://i.imgur.com/gZMoZ.png)
+![alpha build 2](http://i.imgur.com/fu28L.png)
 
 
-Original prototpye screen shot. All coloured hitbox's no bitmaps/sprites. this is from the first working build
+Original prototype screen shot. All coloured hitbox's no bitmaps/sprites. this is from the first working build
 
 ![Proto type](http://i.imgur.com/h67Rj.png)
 

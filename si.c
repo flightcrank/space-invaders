@@ -12,7 +12,7 @@
 #define P_HEIGHT 10
 #define B_WIDTH 5
 #define B_HEIGHT 15
-#define P_BULLETS 3
+#define P_BULLETS 1
 #define E_BULLETS 1
 #define BASE 4
 #define BASE_WIDTH 60
@@ -113,7 +113,7 @@ void init_invaders() {
 	invaders.state_time = SDL_GetTicks();
 	int i,j;
 	int x = 100;
-	int y = 280;
+	int y = 30;
 	
 	for (i = 0; i < 5; i++) {
 	
@@ -637,7 +637,7 @@ int collision(SDL_Rect a, SDL_Rect b) {
 	return 1;
 }
 
-//Populate base's damages array from player or enemy bullet collisions
+//Create damage to the base sprite for player and enemy bullet collisions
 void bullet_base_damage(struct base_t *base, int b_num, struct bullet_t *bullet, int l) {
 
 	int i;
@@ -743,7 +743,7 @@ void bullet_base_damage(struct base_t *base, int b_num, struct bullet_t *bullet,
 	SDL_UnlockSurface(base_img[b_num]);
 }
 
-//Populate base's damages array from invader collisions
+//Create damage to the base sprite for enemy and base collisions
 void enemy_base_damage(struct enemy_t *enemy, struct base_t *base, int index) {
 	
 	int x,y;
