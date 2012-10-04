@@ -106,11 +106,12 @@ void init_score() {
 //Initialize the enemies starting positions, direction, speed and colour
 void init_invaders() {
 	
-	invaders.direction = right;
+	invaders.direction = left;
 	invaders.speed = 1;
 	invaders.state = 0;
 	invaders.state_speed = 1000;
 	invaders.state_time = SDL_GetTicks();
+
 	int i,j;
 	int x = 100;
 	int y = 30;
@@ -255,7 +256,7 @@ void draw_saucer() {
 //Draw the invaders if there alive
 void draw_invaders() {
 
-	SDL_Rect src;
+	SDL_Rect src, dest;
 	int i,j;
 	
 	src.w = E_WIDTH;
@@ -310,7 +311,10 @@ void draw_invaders() {
 					}
 				}
 
-				SDL_BlitSurface(invadersmap, &src, screen, &invaders.enemy[i][j].hitbox);
+				dest.x = invaders.enemy[i][j].hitbox.x;
+				dest.y = invaders.enemy[i][j].hitbox.y;
+				
+				SDL_BlitSurface(invadersmap, &src, screen, &dest);
 			}
 		}
 	}
@@ -663,7 +667,7 @@ void bullet_base_damage(struct base_t *base, int b_num, struct bullet_t *bullet,
 
 		for(i = 0; i < base->hitbox.h; i++) {
 		
-			//the x calculation can get us to pixel colum 60 when 59 is the maximum (0 - 59 is 60 pixels)
+			//the x calculation can get us to pixel column 60 when 59 is the maximum (0 - 59 is 60 pixels)
 			if (x >= BASE_WIDTH) {
 				x = BASE_WIDTH - 1;
 			}
@@ -707,7 +711,7 @@ void bullet_base_damage(struct base_t *base, int b_num, struct bullet_t *bullet,
 		
 		for(i = 0; i < base->hitbox.h; i++) {
 			
-			//the x calculation can get us to pixel colum 60 when 59 is the maximum (0 - 59 is 60 pixels)
+			//the x calculation can get us to pixel column 60 when 59 is the maximum (0 - 59 is 60 pixels)
 			if (x >= BASE_WIDTH) {
 				x = BASE_WIDTH - 1;
 			}
@@ -749,11 +753,12 @@ void enemy_base_damage(struct enemy_t *enemy, struct base_t *base, int index) {
 	int x,y;
 	SDL_Rect dest;
 
+	//the x hot spot is taken from the top left of the sprite with the speed in pixels
+	//added ahead in case the enemy skips the last few pixels of the sprite and
+	//the collision is no longer detected. Speed in pixels is subtracted if traveling left
+	
 	if (invaders.direction == right) {
 	
-		//the x hot spot is taken from the top left of the sprite with the speed in pixels
-		//added ahead incase the enemy skips the last few pixels of the sprite and
-		//the collision is no longer detected.
 		x = (enemy->hitbox.x + invaders.speed) - base->hitbox.x;
 		y = enemy->hitbox.y - base->hitbox.y;
 		
@@ -775,8 +780,6 @@ void enemy_base_damage(struct enemy_t *enemy, struct base_t *base, int index) {
 
 		if (x < base->hitbox.w) {
 		
-			printf("x = %d y = %d\n", x, y);
-			
 			dest.x = x;
 			dest.y = y;
 			dest.w = base->hitbox.w - 1;
@@ -1204,23 +1207,23 @@ int main() {
 
 		} else if (state == game) {
 
-			draw_player();
-			draw_bases();
+			//draw_player();
+			//draw_bases();
 			draw_invaders();
-			draw_saucer();
-			draw_bullets(bullets, P_BULLETS);
-			draw_bullets(e_bullets, E_BULLETS);
-			enemy_hit_collision();
-			player_hit_collision();
-			enemy_base_collision();
-			saucer_hit_collision();
-			bullet_base_collision(e_bullets, E_BULLETS, 1);
-			bullet_base_collision(bullets, P_BULLETS, 0);
-			enemy_player_collision();
-			enemy_ai();
+			//draw_saucer();
+			//draw_bullets(bullets, P_BULLETS);
+			//draw_bullets(e_bullets, E_BULLETS);
+			//enemy_hit_collision();
+			//player_hit_collision();
+			//enemy_base_collision();
+			//saucer_hit_collision();
+			//bullet_base_collision(e_bullets, E_BULLETS, 1);
+			//bullet_base_collision(bullets, P_BULLETS, 0);
+			//enemy_player_collision();
+			//enemy_ai();
 			move_invaders(invaders.speed);
-			move_saucer();
-			move_bullets(bullets, P_BULLETS, -30);
+			//move_saucer();
+			//move_bullets(bullets, P_BULLETS, -30);
 			move_bullets(e_bullets, E_BULLETS, 20);
 		}
 
