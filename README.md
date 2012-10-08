@@ -8,7 +8,7 @@ Implemented in the C programming language, using SDL library to display graphics
 To compile you need to have SDL installed on your system and the header files
 available to you operating systems PATH environment variable
 
-`gcc si.c -lSDL -o pong`
+`gcc si.c -lSDL -o invaders`
 
 note that there is no sound added so far. the goal was to create a working complete version of the gameplay only
 
