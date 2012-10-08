@@ -1,10 +1,15 @@
 //known bugs
 //some times the bullet wont go past through a base if it hits on the far left edge. cause unknowen
+//its the same bug that i found in my invaders drawing code. using the objects own hitbox as the SDL_Rect
+//as the destination rectangle to blit to. using a seperate local rect in the drawing code solves it.
 #include <stdlib.h>
 #include <stdio.h>
 #include "SDL/SDL.h"
 
-#define WIDTH 800 
+#define SCREEN_WIDTH 800 
+#define SCREEN_HEIGHT 600
+#define E_WIDTH 30
+#define WIDTH 600 
 #define HEIGHT 600
 #define E_WIDTH 30
 #define E_HEIGHT 30
@@ -13,7 +18,7 @@
 #define B_WIDTH 5
 #define B_HEIGHT 15
 #define P_BULLETS 1
-#define E_BULLETS 1
+#define E_BULLETS 3
 #define BASE 4
 #define BASE_WIDTH 60
 #define BASE_HEIGHT 40
@@ -24,20 +29,21 @@
 
 enum colour_t {red, green, purple};
 enum direction_t {left, right, stationary};
-enum state_t {menu, options, game};
+enum state_t {menu, options, game, game_over, pause};
 enum ck_t {magenta, lime};
 
 struct score_t {
 
-	int shots;
-	int points;
+	unsigned int shots;
+	unsigned int points;
+	unsigned int level;
 };
 
 struct saucer_t {
 	
 	SDL_Rect hitbox;
-	int alive;
-	int points;
+	unsigned int alive;
+	unsigned int points;
 	enum direction_t direction;
 };
 
@@ -45,14 +51,15 @@ struct enemy_t {
 
 	SDL_Rect hitbox;
 	enum colour_t colour;
-	int alive;
-	int points;
+	unsigned int alive;
+	unsigned int points;
 };
 
 struct invaders_t {
 
 	struct enemy_t enemy[5][10];
 	enum direction_t direction;
+	unsigned int killed;
 	int speed;
 	int state;
 	int state_speed;
@@ -73,7 +80,7 @@ struct player_t {
 struct bullet_t {
 	
 	SDL_Rect hitbox;
-	int alive;
+	unsigned int alive;
 };
 
 //global variables, for convenience.
@@ -86,6 +93,7 @@ static SDL_Surface *saucer_img;
 static SDL_Surface *base_img[4];
 static SDL_Surface *damage_img;
 static SDL_Surface *damage_top_img;
+static SDL_Surface *game_over_img;
 struct score_t score;
 struct invaders_t invaders;
 struct saucer_t saucer;
@@ -93,27 +101,35 @@ struct base_t base[BASE];
 struct player_t player;
 struct bullet_t bullets[P_BULLETS];
 struct bullet_t e_bullets[E_BULLETS];
+unsigned int pause_len;
+Uint32 pause_time;
 enum state_t state;
+
+void draw_string(char s[], int x, int y);
+void pause_for(unsigned int len);
+
+int load_image(char filename[], SDL_Surface **surface, enum ck_t colour_key);
 
 //Initialize the score structure and game state
 void init_score() {
 
 	score.shots = 0;
 	score.points = 0;
-	state = menu;
+	score.level = 1;
 }
 
 //Initialize the enemies starting positions, direction, speed and colour
 void init_invaders() {
 	
-	invaders.direction = left;
+	invaders.direction = right;
 	invaders.speed = 1;
 	invaders.state = 0;
+	invaders.killed = 0;
 	invaders.state_speed = 1000;
 	invaders.state_time = SDL_GetTicks();
 
 	int i,j;
-	int x = 100;
+	int x = 0;
 	int y = 30;
 	
 	for (i = 0; i < 5; i++) {
@@ -145,7 +161,7 @@ void init_invaders() {
 			}
 		}
 		
-		x = 100; //reset line
+		x = 0; //reset line
 		y += E_HEIGHT + 15;
 	}
 }
@@ -164,7 +180,10 @@ void init_player() {
 void init_bases() {
 
 	int i;
-	int x = 100;
+	int base_total = BASE_WIDTH * 4;
+	int space_left = WIDTH - base_total;
+	int even_space = space_left / 5; // 5 gaps
+	int x = even_space;
 	int y = 500;
 
 	for (i = 0; i < BASE; i++) {
@@ -174,8 +193,13 @@ void init_bases() {
 		base[i].hitbox.w = BASE_WIDTH;
 		base[i].hitbox.h = BASE_HEIGHT;
 		
-		x += 180; //distance apart
+		x += BASE_WIDTH + even_space; //distance apart
 	}
+
+	load_image("base.bmp", &base_img[0], magenta);
+	load_image("base.bmp", &base_img[1], magenta);
+	load_image("base.bmp", &base_img[2], magenta);
+	load_image("base.bmp", &base_img[3], magenta);
 }
 
 //Initialize the player bullets dimensions
@@ -218,6 +242,46 @@ void draw_background () {
 	SDL_FillRect(screen,&src,0);
 }
 
+//Draw the HUD
+void draw_hud() {
+	
+	SDL_Rect r;
+	
+	r.x = WIDTH;
+	r.y = 0;
+	r.w = SCREEN_WIDTH - WIDTH;
+	r.h = SCREEN_HEIGHT;
+
+	SDL_FillRect(screen, &r, 41);
+	
+	char score_label[] = "Score";
+	draw_string(score_label, WIDTH, 0);
+	
+	char score_num[10];
+	snprintf(score_num, 10, "%d", score.points);
+	draw_string(score_num, WIDTH, 20);
+
+	char level[] = "Level";
+	draw_string(level, WIDTH, 60);
+	
+	char level_num[2];
+	snprintf(level_num, 2, "%d", score.level);
+	draw_string(level_num, WIDTH, 80);
+	
+	char lives[] = "Lives";
+	draw_string(lives, WIDTH, 120);
+	
+	char lives_num[2];
+	snprintf(lives_num, 2, "%d", player.lives);
+	draw_string(lives_num, WIDTH, 140);
+	
+	char author[] = "Coded by";
+	draw_string(author, WIDTH, 540);
+	
+	char name[] = "J lambert";
+	draw_string(name, WIDTH, 560);
+}
+
 //Draw the title screen
 void draw_title_screen() {
 	
@@ -229,7 +293,7 @@ void draw_title_screen() {
 	src.w = title_screen->w;
 	src.h = title_screen->h;
 
-	dest.x = (WIDTH / 2) - (title_screen->w / 2);
+	dest.x = (SCREEN_WIDTH / 2) - (title_screen->w / 2);
 	dest.y = 0;
 	dest.w = title_screen->w;
 	dest.h = title_screen->h;
@@ -313,6 +377,8 @@ void draw_invaders() {
 
 				dest.x = invaders.enemy[i][j].hitbox.x;
 				dest.y = invaders.enemy[i][j].hitbox.y;
+				dest.w = invaders.enemy[i][j].hitbox.w;
+				dest.h = invaders.enemy[i][j].hitbox.h;
 				
 				SDL_BlitSurface(invadersmap, &src, screen, &dest);
 			}
@@ -420,10 +486,60 @@ void draw_string(char s[], int x, int y) {
 	}
 }
 
+//Draw Game Over message
+void draw_game_over() {
+		
+	SDL_Rect src;
+	SDL_Rect dest;
+
+	src.x = 0;
+	src.y = 0;
+	src.w = game_over_img->w;
+	src.h = game_over_img->h;
+
+	dest.x = (WIDTH / 2) - (game_over_img->w / 2);
+	dest.y = (HEIGHT / 2) - (game_over_img->h / 2);
+	dest.w = game_over_img->w;
+	dest.h = game_over_img->h;
+	
+	SDL_BlitSurface(game_over_img, &src, screen, &dest);
+}
+
 //Print current score to stdout
 void print_score() {
 
 	printf("shot %d. score = %d\n", score.shots, score.points);
+}
+
+//Set invader movment speed
+void set_invaders_speed() {
+
+	switch (invaders.killed) {
+		
+		case 10:
+
+			invaders.speed = 2;
+			invaders.state_speed = 800;
+			break;
+		
+		case 20:
+
+			invaders.speed = 4;
+			invaders.state_speed = 600;
+			break;
+		
+		case 30:
+
+			invaders.speed = 8;
+			invaders.state_speed = 200;
+			break;
+		
+		case 40:
+
+			invaders.speed = 16;
+			invaders.state_speed = 0;
+			break;
+	}
 }
 
 //Move positions of both enemy and player bullets on screen
@@ -461,24 +577,15 @@ void move_invaders_down() {
 		
 		for (j = 0; j < 10; j++) {
 		
-			invaders.enemy[i][j].hitbox.y += E_HEIGHT;
+			invaders.enemy[i][j].hitbox.y += 20;
 		}
-	}
-			
-	invaders.speed++;
-
-	if (invaders.state_speed <= 0) {
-		
-		invaders.state_speed = 0;
-	
-	} else {
-
-		invaders.state_speed -= 100;
 	}
 }
 
 //Move invaders based on there current direction
 int move_invaders(int speed) {
+	
+	set_invaders_speed();
 	
 	int i,j;
 
@@ -566,16 +673,16 @@ int move_invaders(int speed) {
 }
 
 //Move player left or right
-void move_player(int direction) {
+void move_player(enum direction_t direction) {
 
-	if (direction == 0) {
+	if (direction == left) {
 			
 		if (player.hitbox.x > 0) {
 			
 			player.hitbox.x -= 10;
 		}
 
-	} else if (direction == 1) {
+	} else if (direction == right) {
 
 		if (player.hitbox.x + player.hitbox.w < WIDTH){
 
@@ -839,8 +946,10 @@ void enemy_hit_collision() {
 							bullets[k].alive = 0;
 							bullets[k].hitbox.x = 0;
 							bullets[k].hitbox.y = 0;
+							invaders.killed++;
 							score.points += invaders.enemy[i][j].points;
 							print_score();
+							printf("num killed = %d\n", invaders.killed);
 						}
 					}
 				}
@@ -861,8 +970,12 @@ void player_hit_collision() {
 			c = collision(e_bullets[i].hitbox, player.hitbox);
 
 			if (c == 1) {
-		
-				//puts("Player Hit !");
+				
+				if (player.lives >= 0) {
+				
+					player.lives--;
+					pause_for(500);
+				}
 			}
 		}
 	}
@@ -929,7 +1042,7 @@ void saucer_hit_collision() {
 }
 
 //Look for collisions based on invader and player rectangles
-void enemy_player_collision() {
+int enemy_player_collision() {
 
 	int i,j,c;
 
@@ -943,13 +1056,17 @@ void enemy_player_collision() {
 
 				if (c == 1) {
 				
-					invaders.speed = 0;
-					invaders.direction = stationary;
 					player.lives--;
+					pause_for(500);
+					init_invaders();
+					init_bases();
+					return 1;
 				}
 			}
 		}
 	}
+
+	return 0;
 }
 
 //Look for collisions based on bullet and base rectangles
@@ -975,6 +1092,15 @@ void bullet_base_collision(struct bullet_t b[], int max, int l) {
 	}
 }
 
+//Determine for game over event
+void game_over_ai() {
+	
+	if (player.lives < 0) {
+		
+		state = game_over;
+	}
+}
+
 //Shoot bullet/s from player
 void player_shoot() {
 
@@ -993,6 +1119,18 @@ void player_shoot() {
 			bullets[i].alive = 1;
 			break;
 		}
+	}
+}
+
+//Determine game level
+void calculate_level() {
+
+	if (invaders.killed != 0 && invaders.killed % 50 == 0) {
+		
+		score.level++;
+		init_invaders();
+		init_bases();
+		pause_for(500);
 	}
 }
 
@@ -1049,6 +1187,23 @@ void enemy_ai() {
 			}
 		}
 	}
+}
+
+//Determin when to pause game and how long for
+void pause_game() {
+
+	if (SDL_GetTicks() > pause_time + pause_len) {
+	
+		state = game;
+	}
+}
+
+//Set amount of time to pause game for
+void pause_for(unsigned int len) {
+
+	state = pause;
+	pause_time = SDL_GetTicks();
+	pause_len = len;
 }
 
 //Load image files
@@ -1110,7 +1265,7 @@ int main() {
 	SDL_WM_SetCaption("Space Invaders", "P");
 	
 	/* Attempt to set a 800x600 8 bit color video mode */
-	screen = SDL_SetVideoMode(WIDTH, HEIGHT, 8, SDL_DOUBLEBUF );
+	screen = SDL_SetVideoMode(SCREEN_WIDTH, SCREEN_HEIGHT, 8, SDL_DOUBLEBUF );
 	
 	if (screen == NULL) {
 		
@@ -1128,6 +1283,7 @@ int main() {
 	load_image("base.bmp", &base_img[1], magenta);
 	load_image("base.bmp", &base_img[2], magenta);
 	load_image("base.bmp", &base_img[3], magenta);
+	load_image("gameover.bmp", &game_over_img, magenta);
 	load_image("damage.bmp", &damage_img, lime);
 	load_image("damagetop.bmp", &damage_top_img, lime);
 
@@ -1137,12 +1293,14 @@ int main() {
 	int quit = 0;
 	SDL_Event event;
 
+	init_score();
 	init_invaders();
 	init_bases();
 	init_player();
 	init_saucer();
 	init_bullets(bullets, P_BULLETS);
 	init_bullets(e_bullets, E_BULLETS);
+	state = menu;
 		
 	/* Animate */
 	while (quit == 0) {
@@ -1170,7 +1328,8 @@ int main() {
 
 								state = game;
 
-							} else {
+							} else if (state == game){
+								
 								player_shoot();
 								saucer_ai();
 							}
@@ -1180,51 +1339,74 @@ int main() {
 						break;
 					}
 				break;
-
-				default:
-				break;
 			}
 		}
-		
-		//move player
-		if (keystate[SDLK_LEFT]) {
-			
-			move_player(0);
-		}
-
-		if (keystate[SDLK_RIGHT]) {
-			
-			move_player(1);
-		}
-
+	
 		draw_background();
 
 		if (state == menu) {
 			
 			char s[] = "Press SPACEBAR to start";
 			draw_title_screen();
-			draw_string(s, (WIDTH / 2) - (strlen(s) * 10), 500);
+			draw_string(s, (SCREEN_WIDTH / 2) - (strlen(s) * 10), 500);
 
 		} else if (state == game) {
 
-			//draw_player();
-			//draw_bases();
+			//move player
+			if (keystate[SDLK_LEFT]) {
+				
+				move_player(left);
+			}
+
+			if (keystate[SDLK_RIGHT]) {
+				
+				move_player(right);
+			}
+
+			draw_hud();
+			draw_player();
+			draw_bases();
 			draw_invaders();
-			//draw_saucer();
-			//draw_bullets(bullets, P_BULLETS);
-			//draw_bullets(e_bullets, E_BULLETS);
-			//enemy_hit_collision();
-			//player_hit_collision();
-			//enemy_base_collision();
-			//saucer_hit_collision();
-			//bullet_base_collision(e_bullets, E_BULLETS, 1);
-			//bullet_base_collision(bullets, P_BULLETS, 0);
-			//enemy_player_collision();
-			//enemy_ai();
+			draw_saucer();
+			draw_bullets(bullets, P_BULLETS);
+			draw_bullets(e_bullets, E_BULLETS);
+			enemy_hit_collision();
+			player_hit_collision();
+			enemy_base_collision();
+			saucer_hit_collision();
+			bullet_base_collision(e_bullets, E_BULLETS, 1);
+			bullet_base_collision(bullets, P_BULLETS, 0);
+			enemy_player_collision();
 			move_invaders(invaders.speed);
-			//move_saucer();
-			//move_bullets(bullets, P_BULLETS, -30);
-			move_bullets(e_bullets, E_BULLETS, 20);
+			move_saucer();
+			move_bullets(bullets, P_BULLETS, -30);
+			move_bullets(e_bullets, E_BULLETS, 15);
+			calculate_level();
+			enemy_ai();
+			game_over_ai();
+			pause_game();
+		
+		} else if (state == game_over) {
+			
+			draw_hud();
+			draw_player();
+			draw_bases();
+			draw_invaders();
+			draw_saucer();
+			draw_bullets(bullets, P_BULLETS);
+			draw_bullets(e_bullets, E_BULLETS);
+			draw_game_over();
+		
+		} else if (state == pause) {
+			
+			draw_hud();
+			draw_player();
+			draw_bases();
+			draw_invaders();
+			draw_saucer();
+			draw_bullets(bullets, P_BULLETS);
+			draw_bullets(e_bullets, E_BULLETS);
+			pause_game();
 		}
 
 		/* Ask SDL to update the entire screen. */
