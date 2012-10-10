@@ -43,7 +43,6 @@ struct saucer_t {
 	
 	SDL_Rect hitbox;
 	unsigned int alive;
-	unsigned int points;
 	enum direction_t direction;
 };
 
@@ -104,6 +103,7 @@ struct bullet_t e_bullets[E_BULLETS];
 unsigned int pause_len;
 Uint32 pause_time;
 enum state_t state;
+Uint32 title_time;
 
 void draw_string(char s[], int x, int y);
 void pause_for(unsigned int len);
@@ -225,7 +225,6 @@ void init_saucer() {
 	saucer.hitbox.w	= 30;
 	saucer.hitbox.h = 20;
 	saucer.alive = 0;
-	saucer.points = 0;
 	saucer.direction = right;
 }
 
@@ -505,12 +504,6 @@ void draw_game_over() {
 	SDL_BlitSurface(game_over_img, &src, screen, &dest);
 }
 
-//Print current score to stdout
-void print_score() {
-
-	printf("shot %d. score = %d\n", score.shots, score.points);
-}
-
 //Set invader movment speed
 void set_invaders_speed() {
 
@@ -577,7 +570,7 @@ void move_invaders_down() {
 		
 		for (j = 0; j < 10; j++) {
 		
-			invaders.enemy[i][j].hitbox.y += 20;
+			invaders.enemy[i][j].hitbox.y += 15;
 		}
 	}
 }
@@ -914,7 +907,6 @@ void enemy_base_collision() {
 					
 					if (c == 1) {
 						
-						//puts("enemy hit base !");
 						enemy_base_damage(&invaders.enemy[i][j], &base[k], k);
 					}
 				}
@@ -948,8 +940,6 @@ void enemy_hit_collision() {
 							bullets[k].hitbox.y = 0;
 							invaders.killed++;
 							score.points += invaders.enemy[i][j].points;
-							print_score();
-							printf("num killed = %d\n", invaders.killed);
 						}
 					}
 				}
@@ -1002,21 +992,17 @@ void saucer_hit_collision() {
 			
 						case 0:
 							score.points += 50;
-							puts("Saucer Hit 50 points");
 							break;
 	
 						case 1:
 							score.points += 150;
-							puts("Saucer Hit 150 points");
 							break;
 	
 						case 2:
 							score.points += 300;
-							puts("Saucer Hit 300 points");
 							break;
 	
 						default:
-							puts("Saucer Hit no points");
 							break;
 					}
 					
@@ -1033,8 +1019,6 @@ void saucer_hit_collision() {
 						saucer.hitbox.x = WIDTH - saucer.hitbox.w; 
 						saucer.direction = left; 
 					}
-					
-					print_score();
 				}
 			}
 		}
@@ -1084,7 +1068,6 @@ void bullet_base_collision(struct bullet_t b[], int max, int l) {
 
 				if (c == 1) {
 					
-					//printf("bullet hit base !, %d\n",l);
 					bullet_base_damage(&base[j], j, &b[i],l);
 				}
 			}
@@ -1130,6 +1113,7 @@ void calculate_level() {
 		score.level++;
 		init_invaders();
 		init_bases();
+		init_saucer();
 		pause_for(500);
 	}
 }
@@ -1279,10 +1263,6 @@ int main() {
 	load_image("invaders.bmp", &invadersmap, magenta);
 	load_image("player.bmp", &player_img, magenta);
 	load_image("saucer.bmp", &saucer_img, magenta);
-	load_image("base.bmp", &base_img[0], magenta);
-	load_image("base.bmp", &base_img[1], magenta);
-	load_image("base.bmp", &base_img[2], magenta);
-	load_image("base.bmp", &base_img[3], magenta);
 	load_image("gameover.bmp", &game_over_img, magenta);
 	load_image("damage.bmp", &damage_img, lime);
 	load_image("damagetop.bmp", &damage_top_img, lime);
@@ -1301,6 +1281,7 @@ int main() {
 	init_bullets(bullets, P_BULLETS);
 	init_bullets(e_bullets, E_BULLETS);
 	state = menu;
+	title_time = SDL_GetTicks();
 		
 	/* Animate */
 	while (quit == 0) {
@@ -1332,6 +1313,14 @@ int main() {
 								
 								player_shoot();
 								saucer_ai();
+							
+							} else if (state == game_over) {
+							
+								init_invaders();
+								init_bases();
+								init_score();
+								init_player();
+								state = game;
 							}
 						break;
 						
@@ -1347,7 +1336,43 @@ int main() {
 		if (state == menu) {
 			
 			char s[] = "Press SPACEBAR to start";
-			draw_title_screen();
+			SDL_Rect src[60];
+			
+			int i;
+
+			if (title_time + 2000 < SDL_GetTicks())  {
+			
+				src[0].x = 180;
+				src[0].y = 40;
+				src[0].w = 440;
+				src[0].h = 230;
+			
+				SDL_FillRect(screen, &src[0], 248);
+			
+			} else {
+			
+				int y = 0;
+
+				for (i = 0; i < 60; i++) {
+				
+					src[i].x = 0;
+					src[i].y = y;
+					src[i].w = SCREEN_WIDTH;
+					src[i].h = 10;
+
+					SDL_FillRect(screen, &src[i], 227);
+				
+					y += 10;							
+				}
+			
+				for (i = 0; i < 60; i++) {
+
+					SDL_FillRect(screen, &src[i], rand() % 255);
+
+				}
+			}
+			
+			draw_title_screen();	
 			draw_string(s, (SCREEN_WIDTH / 2) - (strlen(s) * 10), 500);
 
 		} else if (state == game) {
